@@ -400,6 +400,59 @@
     color:var(--mut);font-size:12px;margin-top:14px;line-height:1.7;
     box-shadow:0 8px 18px rgba(0,0,0,.12)}
   .info-card strong{color:#fff}
+
+  /* ═══════════════════════════════════════════════
+     TELA DETALHE DO CONTRATO (HISTÓRICO)
+     ═══════════════════════════════════════════════ */
+  #scr-detalhe{padding:14px}
+  .det-back{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+    color:var(--mutLight);cursor:pointer;background:none;border:none;
+    font-family:var(--sans);letter-spacing:.06em;padding:4px 0;margin-bottom:12px}
+  .det-back svg{width:16px;height:16px;stroke:currentColor;fill:none;
+    stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .det-back:active{color:var(--gold)}
+
+  .det-info{position:relative;overflow:hidden;
+    background:
+      linear-gradient(135deg,rgba(255,255,255,.07) 0%,transparent 30%),
+      linear-gradient(200deg,transparent 55%,rgba(255,255,255,.03) 60%,transparent 68%),
+      #121212;
+    border:1px solid var(--glassBorder);border-radius:var(--radius);padding:20px;
+    margin-bottom:14px;color:var(--text);
+    box-shadow:inset 0 1px 0 var(--glassRimTop),0 20px 45px rgba(0,0,0,.22),0 8px 18px rgba(0,0,0,.12)}
+  .det-info::before{content:'';position:absolute;left:0;right:0;bottom:0;height:70px;pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 160' preserveAspectRatio='none'%3E%3Cpath d='M0,90 C80,40 140,130 220,80 C300,35 340,110 400,70 L400,160 L0,160 Z' fill='%23ffffff' fill-opacity='0.03'/%3E%3C/svg%3E");
+    background-size:100% 100%;background-repeat:no-repeat}
+  .det-numero{font-size:10px;font-weight:700;color:var(--gold);letter-spacing:.12em;
+    text-transform:uppercase;margin-bottom:6px}
+  .det-empresa{font-size:16px;font-weight:800;color:#fff;margin-bottom:8px}
+  .det-trecho{font-size:12px;color:var(--mut);line-height:1.6;font-variant-numeric:tabular-nums}
+
+  .det-nova-btn{margin-bottom:18px}
+
+  .det-sect{font-size:10px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.2em;color:var(--mutLight);margin-bottom:10px;
+    display:flex;align-items:center;justify-content:space-between}
+  .det-sect-count{letter-spacing:normal;font-weight:600;font-size:10px}
+
+  .det-hist-item{position:relative;overflow:hidden;
+    background:
+      linear-gradient(135deg,rgba(255,255,255,.05) 0%,transparent 30%),#161616;
+    border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px 16px;
+    margin-bottom:8px;color:var(--text);cursor:pointer;
+    transition:border-color .15s,transform .1s;
+    box-shadow:0 4px 12px rgba(0,0,0,.15)}
+  .det-hist-item:active{border-color:var(--gold);transform:scale(.98)}
+  .det-hist-row{display:flex;align-items:center;justify-content:space-between}
+  .det-hist-date{font-size:13px;font-weight:700;color:#fff}
+  .det-hist-fator{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+  .det-hist-sub{font-size:10px;color:var(--mut);margin-top:4px;font-weight:500}
+  .det-hist-idx{font-size:9px;font-weight:600;color:rgba(255,255,255,.3);
+    letter-spacing:.08em;text-transform:uppercase}
+
+  .det-empty-hist{text-align:center;padding:30px 20px;color:var(--mutLight)}
+  .det-empty-hist p{font-size:12px;font-weight:600;margin-bottom:4px}
+  .det-empty-hist span{font-size:10px;color:rgba(0,0,0,.3)}
 </style>
 </head>
 <body>
@@ -476,6 +529,11 @@
           <p style="font-size:13px">Complete a vistoria para gerar a planilha.</p>
         </div>
       </div>
+    </div>
+
+    <!-- ═══ DETALHE DO CONTRATO (HISTÓRICO) ═══ -->
+    <div class="screen" id="scr-detalhe">
+      <div id="det-body"></div>
     </div>
   </main>
 
@@ -558,6 +616,7 @@ let editandoId=null;    /* id do contrato sendo editado no modal */
 let rodAtivo=0;         /* índice da rodovia ativa na vistoria (quando há múltiplas) */
 let kmsAll=[];          /* kms de TODAS as rodovias (para cálculos globais) */
 let kmsPorRod=[];       /* array de arrays: kms separados por rodovia */
+let detalheCtId=null;   /* id do contrato aberto na tela de detalhe */
 
 /* ===== Contratos (localStorage) ===== */
 const CK='pd-contratos'; /* chave localStorage dos contratos */
@@ -594,20 +653,25 @@ function renderContratos(){
   hdr.style.display='';
 
   el.innerHTML=list.map(ct=>{
-    /* Busca última vistoria salva para este contrato */
-    const hk='vp-'+ct.rodovia+'/'+ct.uf+'-'+ct.ki+'-'+ct.kf;
+    /* Busca última vistoria: novo formato (vh-) ou antigo (vp-) */
+    const arr=getHistorico(ct.id);
+    let lastEntry=arr.length?arr[arr.length-1]:null;
+    if(!lastEntry){
+      try{
+        const hk='vp-'+ct.rodovia+'/'+ct.uf+'-'+ct.ki+'-'+ct.kf;
+        lastEntry=JSON.parse(localStorage.getItem(hk)||'null');
+      }catch(e){}
+    }
     let lastInfo='';
-    try{
-      const h=JSON.parse(localStorage.getItem(hk)||'null');
-      if(h){
-        const pct=(h.total*100).toFixed(1);
-        const c=h.total>=.90?'var(--ok)':h.total>=.70?'var(--warn)':'var(--nc)';
-        lastInfo=`<div class="ct-last">
-          <span class="ct-last-dot" style="background:${c}"></span>
-          Última: ${fd(h.date)||'—'} · Fator ${pct}%
-        </div>`;
-      }
-    }catch(e){}
+    if(lastEntry){
+      const pct=(lastEntry.total*100).toFixed(1);
+      const c=lastEntry.total>=.90?'var(--ok)':lastEntry.total>=.70?'var(--warn)':'var(--nc)';
+      const nVist=arr.length;
+      lastInfo=`<div class="ct-last">
+        <span class="ct-last-dot" style="background:${c}"></span>
+        Última: ${fd(lastEntry.date)||'—'} · Fator ${pct}%${nVist>1?' · '+nVist+' vistorias':''}
+      </div>`;
+    }
 
     /* Monta UFs para badge (pode ter mais de uma) */
     const rods=ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}];
@@ -615,7 +679,7 @@ function renderContratos(){
     /* Trecho com quebras de linha → <br> */
     const trechoHtml=(ct.trecho||'').replace(/\n/g,'<br>');
 
-    return `<div class="ct-card" onclick="abrirContrato('${ct.id}')">
+    return `<div class="ct-card" onclick="abrirDetalhe('${ct.id}')">
       <div class="ct-row1">
         <div class="ct-numero">Contrato ${ct.numero||'S/N'}</div>
         <div class="ct-uf">${ufs||'—'}</div>
@@ -769,6 +833,7 @@ function salvarContrato(){
   const first=rods[0];
   const list=getContratos();
 
+  let savedId;
   if(editandoId){
     const idx=list.findIndex(c=>c.id===editandoId);
     if(idx>=0){
@@ -776,9 +841,11 @@ function salvarContrato(){
         uf:first.uf,rodovia:first.rodovia,ki:first.ki,kf:first.kf,
         trecho,rodovias:rods};
     }
+    savedId=editandoId;
   }else{
+    savedId='ct-'+Date.now();
     list.push({
-      id:'ct-'+Date.now(),
+      id:savedId,
       numero,empresa,
       uf:first.uf,rodovia:first.rodovia,ki:first.ki,kf:first.kf,
       trecho,rodovias:rods,
@@ -788,7 +855,8 @@ function salvarContrato(){
 
   setContratos(list);
   hideModal();
-  renderContratos();
+  /* Após cadastrar/editar, abre o detalhe do contrato */
+  abrirDetalhe(savedId);
 }
 
 function excluirContrato(id){
@@ -796,6 +864,131 @@ function excluirContrato(id){
   const list=getContratos().filter(c=>c.id!==id);
   setContratos(list);
   renderContratos();
+}
+
+/* ===== Abrir detalhe do contrato (histórico) ===== */
+function abrirDetalhe(id){
+  detalheCtId=id;
+  renderDetalhe();
+  go('scr-detalhe');
+}
+
+function renderDetalhe(){
+  const id=detalheCtId;
+  const list=getContratos();
+  const ct=list.find(c=>c.id===id);
+  if(!ct){go('scr-contratos');return;}
+
+  const rods=ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}];
+  const trechoHtml=(ct.trecho||'').replace(/\n/g,'<br>');
+  const hist=getHistorico(id);
+
+  let h='';
+
+  /* Botão voltar */
+  h+=`<button class="det-back" onclick="go('scr-contratos')">
+    <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Contratos
+  </button>`;
+
+  /* Card com info do contrato */
+  h+=`<div class="det-info">
+    <div class="det-numero">Contrato ${ct.numero||'S/N'}</div>
+    <div class="det-empresa">${ct.empresa||'Empresa não informada'}</div>
+    <div class="det-trecho">${trechoHtml}</div>
+  </div>`;
+
+  /* Botão iniciar nova vistoria */
+  h+=`<button class="btn gold det-nova-btn" onclick="abrirContrato('${id}')">
+    Iniciar Nova Vistoria
+  </button>`;
+
+  /* Seção de histórico */
+  h+=`<div class="det-sect">
+    <span>Histórico de Vistorias</span>
+    <span class="det-sect-count">${hist.length} vistoria${hist.length!==1?'s':''}</span>
+  </div>`;
+
+  if(!hist.length){
+    h+=`<div class="det-empty-hist">
+      <p>Nenhuma vistoria realizada</p>
+      <span>Clique em "Iniciar Nova Vistoria" para começar</span>
+    </div>`;
+  }else{
+    /* Mais recente primeiro */
+    hist.slice().reverse().forEach((entry,i)=>{
+      const origIdx=hist.length-1-i;
+      const dateStr=fd(entry.date)||'—';
+      const total=entry.total!=null?(entry.total*100).toFixed(1):'—';
+      const c=entry.total>=.90?'var(--ok)':entry.total>=.70?'var(--warn)':'var(--nc)';
+      const num=hist.length-i;
+      h+=`<div class="det-hist-item" onclick="verVistoria('${id}',${origIdx})">
+        <div class="det-hist-row">
+          <div>
+            <div class="det-hist-date">${dateStr}</div>
+            <div class="det-hist-sub">${entry.rod||''}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="det-hist-fator" style="color:${c}">${total}%</div>
+            <div class="det-hist-idx">Vistoria #${num}</div>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+
+  document.getElementById('det-body').innerHTML=h;
+}
+
+/* ===== Ver vistoria passada (abre resultado daquela inspeção) ===== */
+function verVistoria(ctId,idx){
+  const arr=getHistorico(ctId);
+  if(!arr[idx])return;
+  const h=arr[idx];
+  const ct=getContratos().find(c=>c.id===ctId);
+  if(!ct)return;
+
+  contratoAtivo=ctId;
+  const rods=ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}];
+  const rodLabels=rods.map(r=>r.rodovia+(r.uf?'/'+r.uf:''));
+  CFG={
+    rod:rodLabels.join(', '),
+    trecho:ct.trecho,
+    data:h.date||'',
+    fiscal:h.fiscal||'',
+    ki:rods[0].ki,
+    kf:rods[rods.length-1].kf,
+    numero:ct.numero,
+    empresa:ct.empresa,
+    rodovias:rods
+  };
+
+  /* Gera KMs e preenche com os dados da vistoria salva */
+  kmsPorRod=[];
+  rods.forEach((r,ri)=>{
+    const a=[];
+    let f=r.ki;
+    const rodLabel=rodLabels[ri];
+    while(f<r.kf){
+      const t=Math.min(Math.ceil(f+.001),r.kf);
+      const n=f===t?r.kf:t;
+      a.push({a:f,b:n,rod:rodLabel,rodIdx:ri,capina:null,rocada:null,limpeza:null,desobst:null,caiacao:null});
+      f=n;if(f>=r.kf)break;
+    }
+    kmsPorRod.push(a);
+  });
+  kmsAll=kmsPorRod.flat();
+  rodAtivo=0;
+  kms=kmsPorRod[0];
+  started=true;
+
+  /* Restaura os valores da vistoria */
+  const allKms=kmsPorRod.flat();
+  h.data.forEach(saved=>{
+    const match=allKms.find(k=>k.a===saved.a&&k.b===saved.b&&(!saved.rod||k.rod===saved.rod));
+    if(match)ITENS.forEach(it=>{if(saved[it.id]!=null)match[it.id]=saved[it.id];});
+  });
+
+  go('scr-resultado');
 }
 
 /* ===== Abrir contrato → vai direto pra vistoria ===== */
@@ -880,6 +1073,17 @@ function switchRod(idx){
 
 /* ===== Histórico (localStorage) ===== */
 function histKey(){return 'vp-'+CFG.rod+'-'+CFG.ki+'-'+CFG.kf;}
+
+/* Novo formato: array de vistorias por contrato (vh-{id}) */
+function getHistorico(ctId){
+  try{return JSON.parse(localStorage.getItem('vh-'+ctId)||'[]');}catch(e){return[];}
+}
+function addHistorico(ctId,entry){
+  const arr=getHistorico(ctId);
+  arr.push(entry);
+  try{localStorage.setItem('vh-'+ctId,JSON.stringify(arr));}catch(e){}
+}
+
 function saveHist(){
   try{
     /* Salva TODOS os KMs de todas as rodovias */
@@ -888,15 +1092,34 @@ function saveHist(){
       capina:k.capina,rocada:k.rocada,limpeza:k.limpeza,
       desobst:k.desobst,caiacao:k.caiacao}));
     const{ind,total}=calc();
-    localStorage.setItem(histKey(),JSON.stringify(
-      {data,date:CFG.data,fiscal:CFG.fiscal,rod:CFG.rod,
+    const entry={data,date:CFG.data,fiscal:CFG.fiscal,rod:CFG.rod,
        trecho:CFG.trecho,ki:CFG.ki,kf:CFG.kf,
        numero:CFG.numero,empresa:CFG.empresa,
-       total,ts:Date.now()}));
+       total,ts:Date.now()};
+    /* Salva no formato novo (array por contrato) */
+    if(contratoAtivo) addHistorico(contratoAtivo, entry);
+    /* Compatibilidade: salva no formato antigo também */
+    localStorage.setItem(histKey(),JSON.stringify(entry));
   }catch(e){}
 }
 function loadHist(){
   try{
+    /* Tenta formato novo (array de vistorias por contrato) */
+    if(contratoAtivo){
+      const arr=getHistorico(contratoAtivo);
+      if(arr.length){
+        const h=arr[arr.length-1];
+        if(h&&h.data){
+          const allKms=kmsPorRod.flat();
+          h.data.forEach(saved=>{
+            const match=allKms.find(k=>k.a===saved.a&&k.b===saved.b&&(!saved.rod||k.rod===saved.rod));
+            if(match)ITENS.forEach(it=>{if(saved[it.id])match[it.id]=saved[it.id];});
+          });
+          return h;
+        }
+      }
+    }
+    /* Fallback: formato antigo (chave única vp-*) */
     const s=localStorage.getItem(histKey());
     if(!s)return false;
     const h=JSON.parse(s);
@@ -916,11 +1139,14 @@ function loadHist(){
 function go(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
   document.getElementById(id).classList.add('on');
+  /* Detalhe é sub-tela de Contratos — mantém o botão Contratos ativo no dock */
+  const dockId=id==='scr-detalhe'?'scr-contratos':id;
   document.querySelectorAll('nav button').forEach(b=>
-    b.classList.toggle('on',b.dataset.s===id));
+    b.classList.toggle('on',b.dataset.s===dockId));
   const fixed=id==='scr-vistoria';
   document.getElementById('main').classList.toggle('fixed-mode',fixed);
   if(id==='scr-contratos')renderContratos();
+  if(id==='scr-detalhe'&&detalheCtId)renderDetalhe();
   if(id==='scr-resultado'&&started)buildRes();
   if(id==='scr-planilha'&&started)buildPlan();
 }
