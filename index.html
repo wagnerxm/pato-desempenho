@@ -151,11 +151,16 @@
     display:flex;align-items:center;gap:6px}
   .ct-last-dot{width:6px;height:6px;border-radius:50%}
 
-  /* Estado vazio */
-  .ct-empty{text-align:center;padding:60px 30px;color:var(--mutLight)}
-  .ct-empty-icon{font-size:48px;margin-bottom:14px;opacity:.3}
-  .ct-empty p{font-size:13px;line-height:1.6}
-  .ct-empty .btn{margin-top:18px;width:auto;display:inline-flex;padding:14px 28px}
+  /* Estado vazio — botão "+" centralizado grande */
+  .ct-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:calc(100vh - 160px);text-align:center;padding:30px;color:var(--mutLight)}
+  .ct-empty-add{width:80px;height:80px;border-radius:50%;border:none;
+    background:var(--gold);color:#0d0f08;font-size:40px;font-weight:700;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 8px 28px rgba(183,217,45,.4);transition:transform .12s;margin-bottom:18px}
+  .ct-empty-add:active{transform:scale(.9)}
+  .ct-empty p{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--mutLight);line-height:1.6}
 
   /* ═══════════════════════════════════════════════
      MODAL DE CADASTRO DE CONTRATO
@@ -564,15 +569,20 @@ function renderContratos(){
   const list=getContratos();
   const el=document.getElementById('ct-list');
   const cnt=document.getElementById('ct-count');
+  const hdr=document.querySelector('.ct-header');
   cnt.textContent=list.length?list.length+' contrato'+(list.length>1?'s':''):'';
 
   if(!list.length){
+    /* Sem contratos: esconde header, mostra botão "+" grande centralizado */
+    hdr.style.display='none';
     el.innerHTML=`<div class="ct-empty">
-      <div class="ct-empty-icon">📋</div>
-      <p>Nenhum contrato cadastrado.<br>Toque no <b>+</b> para adicionar.</p>
+      <button class="ct-empty-add" onclick="showModal()" title="Novo contrato">+</button>
+      <p>Clique para cadastrar um contrato</p>
     </div>`;
     return;
   }
+  /* Com contratos: mostra header com "+" no canto */
+  hdr.style.display='';
 
   el.innerHTML=list.map(ct=>{
     /* Busca última vistoria salva para este contrato */
