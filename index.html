@@ -51,11 +51,10 @@
     background:rgba(244,244,242,.82);backdrop-filter:blur(20px) saturate(150%);
     -webkit-backdrop-filter:blur(20px) saturate(150%);
     box-shadow:0 1px 0 rgba(0,0,0,.06);flex-shrink:0}
-  header.top .logo{font-size:17px;font-weight:800;letter-spacing:-.01em;color:var(--gold);
-    filter:drop-shadow(0 0 4px rgba(183,217,45,.3))}
-  header.top .logo span{color:#1c2333;filter:none}
-  header.top .sub{margin-left:auto;font-size:7.5px;color:var(--mutLight);letter-spacing:.18em;
-    text-transform:uppercase;white-space:nowrap}
+  header.top .logo{line-height:0;flex-shrink:0}
+  header.top .logo img{height:22px;width:auto;display:block}
+  header.top .sub{margin-left:auto;font-size:min(1.8vw, 7.5px);color:var(--mutLight);letter-spacing:.14em;
+    text-transform:uppercase;white-space:nowrap;text-align:right}
 
   /* ── Nav fixa na base — dock arredondado, fundo claro glass ── */
   nav{flex-shrink:0;display:flex;gap:4px;justify-content:center;
@@ -407,7 +406,7 @@
 <body>
 <div id="app">
   <header class="top">
-    <div class="logo">PATO<span>Desempenho</span></div>
+    <div class="logo"><img src="logo-header.png" alt="PATO Desempenho"></div>
     <div class="sub">Avaliação por Parâmetro de Desempenho</div>
   </header>
 
