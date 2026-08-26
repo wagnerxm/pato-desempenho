@@ -975,14 +975,20 @@ function toggleNA(kmIdx, itemId){
 }
 
 /* ===== Touch / pressão longa (event delegation) ===== */
+/* iOS Safari sintetiza mousedown/mouseup após touchend, o que fazia cycleBtn
+   rodar 2× (null→C→NC) num toque, e toggleNA ser desfeita pelo mouseup fantasma.
+   Solução: gravar timestamp do último touchend e ignorar mouse sintético (< 500ms). */
 (function(){
   const HOLD_MS=600;
   let timer=null, fired=false, sx=0, sy=0;
   let activeKm=-1, activeItem='';
+  let lastTouchEnd=0; /* timestamp do último touchend — ignora mouse sintético */
   const tbody=document.getElementById('v-tbody');
   function findBtn(el){return el.closest('.vbtn');}
 
   function onDown(e){
+    /* Ignora mousedown sintético que o iOS/Android gera após o touch */
+    if(e.type==='mousedown'&&Date.now()-lastTouchEnd<500)return;
     const btn=findBtn(e.target);if(!btn)return;
     fired=false;
     activeKm=+btn.dataset.km;activeItem=btn.dataset.item;
@@ -1003,6 +1009,9 @@ function toggleNA(kmIdx, itemId){
     }
   }
   function onUp(e){
+    /* Ignora mouseup sintético pós-touch */
+    if(e.type==='mouseup'&&Date.now()-lastTouchEnd<500)return;
+    if(e.type==='touchend')lastTouchEnd=Date.now();
     clearTimeout(timer);timer=null;
     tbody.querySelectorAll('.holding').forEach(el=>el.classList.remove('holding'));
     if(fired){fired=false;return;}
@@ -1018,7 +1027,8 @@ function toggleNA(kmIdx, itemId){
   tbody.addEventListener('mousemove',onMove);
   tbody.addEventListener('mouseup',onUp);
   tbody.addEventListener('contextmenu',onCtx);
-  tbody.addEventListener('click',e=>{if(findBtn(e.target))e.preventDefault();});
+  /* Bloqueia o click sintético também — evita terceira invocação em alguns Androids */
+  tbody.addEventListener('click',e=>{if(findBtn(e.target)){e.preventDefault();e.stopPropagation();}});
 })();
 
 /* ===== Progresso ===== */
