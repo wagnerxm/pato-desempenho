@@ -37,15 +37,13 @@
     -webkit-text-size-adjust:100%;-webkit-font-smoothing:antialiased}
 
   /* ── App shell ── */
-  /* navGap = espaço reservado embaixo do main para o dock não sobrepor o conteúdo */
-  #app{display:flex;flex-direction:column;height:100%;
-    --navGap:calc(var(--navH) + 24px + env(safe-area-inset-bottom,0px))}
-  main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
-    padding-bottom:var(--navGap)}
+  /* Nav fixa na base do flex — conteúdo rola entre header e nav, sem sobreposição */
+  #app{display:flex;flex-direction:column;height:100%}
+  main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
   .screen{display:none;animation:scrIn .18s ease-out}
   .screen.on{display:block}
   @keyframes scrIn{from{opacity:0}to{opacity:1}}
-  main.fixed-mode{overflow:hidden !important;padding-bottom:0 !important}
+  main.fixed-mode{overflow:hidden !important}
 
   /* ── Header ── */
   header.top{padding:calc(12px + env(safe-area-inset-top,0px)) 20px 10px;
@@ -59,15 +57,12 @@
   header.top .sub{margin-left:auto;font-size:7.5px;color:var(--mutLight);letter-spacing:.18em;
     text-transform:uppercase;white-space:nowrap}
 
-  /* ── Floating dock nav ── */
-  nav{position:fixed;left:50%;transform:translateX(-50%);
-    bottom:calc(8px + env(safe-area-inset-bottom,0px));display:flex;gap:4px;
-    background:
-      linear-gradient(135deg,rgba(255,255,255,.12) 0%,rgba(255,255,255,.02) 55%),
-      rgba(24,26,28,.88);
-    backdrop-filter:blur(20px) saturate(150%);-webkit-backdrop-filter:blur(20px) saturate(150%);
-    border-radius:999px;padding:6px;z-index:40;
-    box-shadow:inset 0 1.5px 0 var(--glassRimTop),inset 0 -1px 0 var(--glassRimBot),0 14px 34px rgba(0,0,0,.45)}
+  /* ── Nav fixa na base ── */
+  nav{flex-shrink:0;display:flex;gap:4px;justify-content:center;
+    padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));
+    background:rgba(24,26,28,.96);
+    border-top:1px solid rgba(255,255,255,.08);z-index:40;
+    box-shadow:0 -4px 18px rgba(0,0,0,.25)}
   nav button{background:none;border:none;color:var(--mut);font-family:var(--sans);
     font-size:9px;letter-spacing:.1em;text-transform:uppercase;
     padding:8px 14px;display:flex;flex-direction:column;align-items:center;gap:4px;
@@ -306,7 +301,7 @@
   }
   .vbtn.holding{animation:holdPulse .6s ease-out}
 
-  .v-foot{flex-shrink:0;padding:6px 14px calc(6px + var(--navH) + 24px + env(safe-area-inset-bottom,0px));
+  .v-foot{flex-shrink:0;padding:6px 14px;
     display:flex;flex-direction:column;gap:6px}
   .v-foot .btn{padding:13px 18px;font-size:14px}
   .v-foot-leg{display:flex;gap:8px;justify-content:center;font-size:9px;color:var(--mutLight);
