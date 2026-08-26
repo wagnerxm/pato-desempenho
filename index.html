@@ -194,7 +194,23 @@
   .modal-body .trecho-preview{background:rgba(183,217,45,.08);border:1px solid rgba(183,217,45,.2);
     border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;color:#5a7a14;
     margin-top:6px;font-variant-numeric:tabular-nums;min-height:40px;
-    display:flex;align-items:center}
+    line-height:1.7}
+
+  /* Bloco de cada rodovia no modal */
+  .rod-block{position:relative;background:rgba(0,0,0,.025);border:1px solid rgba(0,0,0,.06);
+    border-radius:16px;padding:12px 14px;margin-top:10px}
+  .rod-block-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .rod-block-label{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--mutLight)}
+  .rod-block .rod-rm{background:none;border:none;font-size:16px;color:rgba(239,83,80,.5);
+    cursor:pointer;padding:0 4px;font-weight:700;line-height:1}
+  .rod-block .rod-rm:active{color:var(--nc)}
+  .rod-add-btn{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(183,217,45,.5);
+    background:rgba(183,217,45,.08);color:#5a7a14;font-size:18px;font-weight:700;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+    transition:transform .12s}
+  .rod-add-btn:active{transform:scale(.9)}
+
   .modal-foot{padding:14px 20px 0}
   .modal-foot .btn{padding:15px 18px}
 
@@ -491,34 +507,14 @@
       <label class="f">Empresa Executora</label>
       <input type="text" id="m-empresa" placeholder="Nome da construtora">
 
-      <div class="field-row">
-        <div>
-          <label class="f">UF</label>
-          <select id="m-uf">
-            <option value="">Selecione</option>
-            <option>AC</option><option>AL</option><option>AM</option><option>AP</option>
-            <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
-            <option>GO</option><option>MA</option><option>MG</option><option>MS</option>
-            <option>MT</option><option>PA</option><option>PB</option><option>PE</option>
-            <option>PI</option><option>PR</option><option>RJ</option><option selected>RN</option>
-            <option>RO</option><option>RR</option><option>RS</option><option>SC</option>
-            <option>SE</option><option>SP</option><option>TO</option>
-          </select>
-        </div>
-        <div>
-          <label class="f">Rodovia</label>
-          <input type="text" id="m-rodovia" placeholder="Ex: BR-226">
-        </div>
-      </div>
+      <!-- Rodovias dinâmicas -->
+      <div id="m-rods-wrap"></div>
 
-      <label class="f">Faixa de KMs</label>
-      <div class="field-row">
-        <div><input type="number" id="m-ki" placeholder="KM Inicial" oninput="atualizaTrecho()"></div>
-        <div><input type="number" id="m-kf" placeholder="KM Final" oninput="atualizaTrecho()"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+        <label class="f" style="margin:0">Trecho</label>
+        <button type="button" class="rod-add-btn" onclick="addRodField()" title="Adicionar rodovia">+</button>
       </div>
-
-      <label class="f">Trecho</label>
-      <div class="trecho-preview" id="m-trecho-preview">Preencha os KMs acima</div>
+      <div class="trecho-preview" id="m-trecho-preview">Preencha os campos acima</div>
     </div>
     <div class="modal-foot">
       <button class="btn gold" id="m-salvar-btn" onclick="salvarContrato()">Cadastrar Contrato</button>
@@ -600,14 +596,19 @@ function renderContratos(){
       }
     }catch(e){}
 
+    /* Monta UFs para badge (pode ter mais de uma) */
+    const rods=ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}];
+    const ufs=[...new Set(rods.map(r=>r.uf).filter(Boolean))].join('/');
+    /* Trecho com quebras de linha → <br> */
+    const trechoHtml=(ct.trecho||'').replace(/\n/g,'<br>');
+
     return `<div class="ct-card" onclick="abrirContrato('${ct.id}')">
       <div class="ct-row1">
         <div class="ct-numero">Contrato ${ct.numero||'S/N'}</div>
-        <div class="ct-uf">${ct.uf||'—'}</div>
+        <div class="ct-uf">${ufs||'—'}</div>
       </div>
       <div class="ct-empresa">${ct.empresa||'Empresa não informada'}</div>
-      <div class="ct-rod">${ct.rodovia||'—'}/${ct.uf||''}</div>
-      <div class="ct-trecho">${ct.trecho}</div>
+      <div class="ct-trecho">${trechoHtml}</div>
       ${lastInfo}
       <div class="ct-actions" onclick="event.stopPropagation()">
         <button class="ct-act-btn" onclick="editarContrato('${ct.id}')">Editar</button>
@@ -618,17 +619,79 @@ function renderContratos(){
 }
 
 /* ===== Modal: Novo / Editar Contrato ===== */
+const UF_OPTIONS='<option value="">UF</option><option>AC</option><option>AL</option><option>AM</option><option>AP</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MG</option><option>MS</option><option>MT</option><option>PA</option><option>PB</option><option>PE</option><option>PI</option><option>PR</option><option>RJ</option><option>RN</option><option>RO</option><option>RR</option><option>RS</option><option>SC</option><option>SE</option><option>SP</option><option>TO</option>';
+
+/* Gera o HTML de um bloco de rodovia no modal */
+function rodBlockHTML(idx, r){
+  r=r||{uf:'RN',rodovia:'',ki:'',kf:''};
+  const canDel=idx>0;/* primeira rodovia não pode ser removida */
+  return `<div class="rod-block" data-rod-idx="${idx}">
+    <div class="rod-block-head">
+      <span class="rod-block-label">Rodovia ${idx+1}</span>
+      ${canDel?`<button type="button" class="rod-rm" onclick="removeRodField(${idx})" title="Remover">✕</button>`:''}
+    </div>
+    <div class="field-row">
+      <div><select class="mr-uf" onchange="atualizaTrecho()">${UF_OPTIONS}</select></div>
+      <div><input type="text" class="mr-rod" placeholder="Ex: BR-226" value="${r.rodovia}" oninput="atualizaTrecho()"></div>
+    </div>
+    <label class="f" style="margin-top:8px">Faixa de KMs</label>
+    <div class="field-row">
+      <div><input type="number" class="mr-ki" placeholder="KM Inicial" value="${r.ki}" oninput="atualizaTrecho()"></div>
+      <div><input type="number" class="mr-kf" placeholder="KM Final" value="${r.kf}" oninput="atualizaTrecho()"></div>
+    </div>
+  </div>`;
+}
+
+/* Adiciona mais um bloco de rodovia */
+function addRodField(){
+  const wrap=document.getElementById('m-rods-wrap');
+  const idx=wrap.querySelectorAll('.rod-block').length;
+  wrap.insertAdjacentHTML('beforeend',rodBlockHTML(idx,null));
+  /* Seta UF padrão RN no novo bloco */
+  const sels=wrap.querySelectorAll('.rod-block:last-child .mr-uf');
+  if(sels.length)sels[0].value='RN';
+  atualizaTrecho();
+}
+function removeRodField(idx){
+  const wrap=document.getElementById('m-rods-wrap');
+  const blocks=[...wrap.querySelectorAll('.rod-block')];
+  if(blocks[idx])blocks[idx].remove();
+  /* Re-numera os labels */
+  wrap.querySelectorAll('.rod-block').forEach((b,i)=>{
+    b.dataset.rodIdx=i;
+    b.querySelector('.rod-block-label').textContent='Rodovia '+(i+1);
+    const rm=b.querySelector('.rod-rm');
+    if(i===0&&rm)rm.remove();/* protege a primeira */
+    if(i>0&&!b.querySelector('.rod-rm')){
+      b.querySelector('.rod-block-head').insertAdjacentHTML('beforeend',
+        `<button type="button" class="rod-rm" onclick="removeRodField(${i})" title="Remover">✕</button>`);
+    }
+    if(rm&&i>0)rm.setAttribute('onclick',`removeRodField(${i})`);
+  });
+  atualizaTrecho();
+}
+
+/* Lê todos os blocos de rodovia do modal → array de objetos */
+function readRodFields(){
+  const blocks=[...document.getElementById('m-rods-wrap').querySelectorAll('.rod-block')];
+  return blocks.map(b=>({
+    uf:b.querySelector('.mr-uf').value,
+    rodovia:b.querySelector('.mr-rod').value.trim(),
+    ki:parseFloat(b.querySelector('.mr-ki').value),
+    kf:parseFloat(b.querySelector('.mr-kf').value),
+  }));
+}
+
 function showModal(){
   editandoId=null;
   document.getElementById('modal-title').textContent='Novo Contrato';
   document.getElementById('m-salvar-btn').textContent='Cadastrar Contrato';
   document.getElementById('m-numero').value='';
   document.getElementById('m-empresa').value='';
-  document.getElementById('m-uf').value='RN';
-  document.getElementById('m-rodovia').value='';
-  document.getElementById('m-ki').value='';
-  document.getElementById('m-kf').value='';
-  document.getElementById('m-trecho-preview').textContent='Preencha os KMs acima';
+  /* Uma rodovia em branco por padrão */
+  document.getElementById('m-rods-wrap').innerHTML=rodBlockHTML(0,null);
+  document.querySelector('.rod-block .mr-uf').value='RN';
+  document.getElementById('m-trecho-preview').textContent='Preencha os campos acima';
   document.getElementById('modal-contrato').classList.add('on');
 }
 function hideModal(){
@@ -644,52 +707,68 @@ function editarContrato(id){
   document.getElementById('m-salvar-btn').textContent='Salvar Alterações';
   document.getElementById('m-numero').value=ct.numero||'';
   document.getElementById('m-empresa').value=ct.empresa||'';
-  document.getElementById('m-uf').value=ct.uf||'';
-  document.getElementById('m-rodovia').value=ct.rodovia||'';
-  document.getElementById('m-ki').value=ct.ki||'';
-  document.getElementById('m-kf').value=ct.kf||'';
+  /* Popula rodovias — compatibilidade com contratos antigos (campo único) */
+  const rods=ct.rodovias||[{uf:ct.uf||'',rodovia:ct.rodovia||'',ki:ct.ki,kf:ct.kf}];
+  const wrap=document.getElementById('m-rods-wrap');
+  wrap.innerHTML=rods.map((r,i)=>rodBlockHTML(i,r)).join('');
+  /* Seta os selects de UF */
+  wrap.querySelectorAll('.rod-block').forEach((b,i)=>{
+    b.querySelector('.mr-uf').value=rods[i].uf||'';
+  });
   atualizaTrecho();
   document.getElementById('modal-contrato').classList.add('on');
 }
 
-/* Auto-gera o trecho conforme o fiscal digita os KMs */
+/* Auto-gera o trecho conforme o fiscal digita */
 function atualizaTrecho(){
-  const ki=parseFloat(document.getElementById('m-ki').value);
-  const kf=parseFloat(document.getElementById('m-kf').value);
+  const rods=readRodFields();
   const el=document.getElementById('m-trecho-preview');
-  if(isNaN(ki)||isNaN(kf)||kf<=ki){
-    el.textContent='Preencha os KMs acima';return;
-  }
-  el.textContent='KM '+fkm(ki)+' ao KM '+fkm(kf);
+  const lines=[];
+  rods.forEach(r=>{
+    if(!r.rodovia||isNaN(r.ki)||isNaN(r.kf)||r.kf<=r.ki)return;
+    const label=r.rodovia+(r.uf?'/'+r.uf:'')+' — KM '+fkm(r.ki)+' ao KM '+fkm(r.kf);
+    lines.push(label);
+  });
+  if(!lines.length){el.textContent='Preencha os campos acima';return;}
+  el.innerHTML=lines.join('<br>');
 }
 
 /* Salvar contrato (novo ou edição) */
 function salvarContrato(){
   const numero=document.getElementById('m-numero').value.trim();
   const empresa=document.getElementById('m-empresa').value.trim();
-  const uf=document.getElementById('m-uf').value;
-  const rodovia=document.getElementById('m-rodovia').value.trim();
-  const ki=parseFloat(document.getElementById('m-ki').value);
-  const kf=parseFloat(document.getElementById('m-kf').value);
+  const rods=readRodFields();
 
-  if(!rodovia)return alert('Informe a rodovia.');
-  if(isNaN(ki)||isNaN(kf)||kf<=ki)return alert('KM Final deve ser maior que KM Inicial.');
-  if(kf-ki>200)return alert('Máximo 200 km por contrato.');
+  /* Valida cada rodovia */
+  for(let i=0;i<rods.length;i++){
+    const r=rods[i];
+    if(!r.rodovia)return alert('Informe a rodovia '+(i+1)+'.');
+    if(isNaN(r.ki)||isNaN(r.kf)||r.kf<=r.ki)return alert('KM Final deve ser maior que KM Inicial na rodovia '+(i+1)+'.');
+    if(r.kf-r.ki>200)return alert('Máximo 200 km por rodovia (rodovia '+(i+1)+').');
+  }
 
-  const trecho='KM '+fkm(ki)+' ao KM '+fkm(kf);
+  /* Gera o texto trecho (uma linha por rodovia) */
+  const trecho=rods.map(r=>
+    r.rodovia+(r.uf?'/'+r.uf:'')+' — KM '+fkm(r.ki)+' ao KM '+fkm(r.kf)
+  ).join('\n');
+
+  /* Compatibilidade: mantém uf/rodovia/ki/kf da primeira rodovia como campos raiz */
+  const first=rods[0];
   const list=getContratos();
 
   if(editandoId){
-    /* Editando existente */
     const idx=list.findIndex(c=>c.id===editandoId);
     if(idx>=0){
-      list[idx]={...list[idx],numero,empresa,uf,rodovia,ki,kf,trecho};
+      list[idx]={...list[idx],numero,empresa,
+        uf:first.uf,rodovia:first.rodovia,ki:first.ki,kf:first.kf,
+        trecho,rodovias:rods};
     }
   }else{
-    /* Novo contrato */
     list.push({
       id:'ct-'+Date.now(),
-      numero,empresa,uf,rodovia,ki,kf,trecho,
+      numero,empresa,
+      uf:first.uf,rodovia:first.rodovia,ki:first.ki,kf:first.kf,
+      trecho,rodovias:rods,
       criadoEm:Date.now()
     });
   }
@@ -713,27 +792,33 @@ function abrirContrato(id){
   if(!ct)return;
 
   contratoAtivo=id;
-  const rod=ct.rodovia+(ct.uf?'/'+ct.uf:'');
+  /* Compatibilidade: contratos antigos (campo único) vs novos (array rodovias) */
+  const rods=ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}];
+  const rod=rods.map(r=>r.rodovia+(r.uf?'/'+r.uf:'')).join(', ');
   CFG={
     rod:rod,
     trecho:ct.trecho,
     data:new Date().toISOString().split('T')[0], /* hoje */
     fiscal:'',
-    ki:ct.ki,
-    kf:ct.kf,
+    ki:rods[0].ki,
+    kf:rods[rods.length-1].kf,
     numero:ct.numero,
-    empresa:ct.empresa
+    empresa:ct.empresa,
+    rodovias:rods
   };
 
-  /* Gera os KMs */
+  /* Gera os KMs de todas as rodovias */
   kms=[];
-  let f=ct.ki;
-  while(f<ct.kf){
-    const t=Math.min(Math.ceil(f+.001),ct.kf);
-    const n=f===t?ct.kf:t;
-    kms.push({a:f,b:n,capina:null,rocada:null,limpeza:null,desobst:null,caiacao:null});
-    f=n;if(f>=ct.kf)break;
-  }
+  rods.forEach(r=>{
+    let f=r.ki;
+    const rodLabel=r.rodovia+(r.uf?'/'+r.uf:'');
+    while(f<r.kf){
+      const t=Math.min(Math.ceil(f+.001),r.kf);
+      const n=f===t?r.kf:t;
+      kms.push({a:f,b:n,rod:rodLabel,capina:null,rocada:null,limpeza:null,desobst:null,caiacao:null});
+      f=n;if(f>=r.kf)break;
+    }
+  });
   started=true;
 
   /* Carrega histórico anterior se existir */
