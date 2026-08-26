@@ -1,4 +1,4 @@
-# PATO Design System — Skill para apps de campo DNIT
+# Layout 01 — Design system para apps de campo DNIT
 
 Use este design system ao criar novos apps PWA de campo para o DNIT.
 O estilo é: **cards escuros glassmórficos sobre fundo claro quente**, com acento verde-limão,
