@@ -230,6 +230,16 @@
      ═══════════════════════════════════════════════ */
   #scr-vistoria.on{display:flex !important;flex-direction:column;height:100%;overflow:hidden}
 
+  /* Abas de rodovia (quando contrato tem >1 rodovia) */
+  .v-rod-tabs{flex-shrink:0;display:flex;gap:6px;padding:6px 14px;
+    overflow-x:auto;background:rgba(0,0,0,.02);border-bottom:1px solid rgba(0,0,0,.06)}
+  .v-rod-tab{background:#e8e8e4;border:1.5px solid rgba(0,0,0,.08);border-radius:999px;
+    padding:6px 14px;font-size:11px;font-weight:700;color:var(--mutLight);
+    cursor:pointer;font-family:var(--sans);white-space:nowrap;transition:all .15s;
+    display:flex;align-items:center;gap:6px}
+  .v-rod-tab.on{background:var(--gold);border-color:var(--gold);color:#0d0f08}
+  .v-rod-tab .vrt-prog{font-size:9px;font-weight:600;opacity:.6}
+
   .prog-bar{height:3px;background:rgba(0,0,0,.06);overflow:hidden;flex-shrink:0}
   .prog-fill{height:100%;background:var(--gold);transition:width .3s ease}
 
@@ -419,6 +429,7 @@
         <span class="v-rod" id="v-rod"></span>
         <span class="v-prog" id="v-prog-txt"></span>
       </div>
+      <div id="v-rod-tabs-wrap"></div>
       <div id="v-banner-wrap"></div>
       <div class="v-hint">Toque = alterna <b>C</b> ↔ <b>NC</b> · Segure = <b>NA</b></div>
       <div class="v-table-wrap" id="v-table-wrap">
@@ -545,6 +556,9 @@ function coef(pct){
 let CFG={}, kms=[], started=false;
 let contratoAtivo=null; /* id do contrato aberto na vistoria */
 let editandoId=null;    /* id do contrato sendo editado no modal */
+let rodAtivo=0;         /* índice da rodovia ativa na vistoria (quando há múltiplas) */
+let kmsAll=[];          /* kms de TODAS as rodovias (para cálculos globais) */
+let kmsPorRod=[];       /* array de arrays: kms separados por rodovia */
 
 /* ===== Contratos (localStorage) ===== */
 const CK='pd-contratos'; /* chave localStorage dos contratos */
@@ -794,9 +808,9 @@ function abrirContrato(id){
   contratoAtivo=id;
   /* Compatibilidade: contratos antigos (campo único) vs novos (array rodovias) */
   const rods=ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}];
-  const rod=rods.map(r=>r.rodovia+(r.uf?'/'+r.uf:'')).join(', ');
+  const rodLabels=rods.map(r=>r.rodovia+(r.uf?'/'+r.uf:''));
   CFG={
-    rod:rod,
+    rod:rodLabels.join(', '),
     trecho:ct.trecho,
     data:new Date().toISOString().split('T')[0], /* hoje */
     fiscal:'',
@@ -807,18 +821,25 @@ function abrirContrato(id){
     rodovias:rods
   };
 
-  /* Gera os KMs de todas as rodovias */
-  kms=[];
-  rods.forEach(r=>{
+  /* Gera os KMs separados por rodovia */
+  kmsPorRod=[];
+  rods.forEach((r,ri)=>{
+    const arr=[];
     let f=r.ki;
-    const rodLabel=r.rodovia+(r.uf?'/'+r.uf:'');
+    const rodLabel=rodLabels[ri];
     while(f<r.kf){
       const t=Math.min(Math.ceil(f+.001),r.kf);
       const n=f===t?r.kf:t;
-      kms.push({a:f,b:n,rod:rodLabel,capina:null,rocada:null,limpeza:null,desobst:null,caiacao:null});
+      arr.push({a:f,b:n,rod:rodLabel,rodIdx:ri,capina:null,rocada:null,limpeza:null,desobst:null,caiacao:null});
       f=n;if(f>=r.kf)break;
     }
+    kmsPorRod.push(arr);
   });
+  /* kmsAll = todos juntos (para cálculos globais) */
+  kmsAll=kmsPorRod.flat();
+  /* kms aponta para a rodovia ativa (para a tabela) */
+  rodAtivo=0;
+  kms=kmsPorRod[0];
   started=true;
 
   /* Carrega histórico anterior se existir */
@@ -831,16 +852,40 @@ function abrirContrato(id){
     </div>`;
   }else{bw.innerHTML='';}
 
-  document.getElementById('v-rod').textContent=rod;
+  /* Abas de rodovia (só se >1) */
+  const tabsWrap=document.getElementById('v-rod-tabs-wrap');
+  if(rods.length>1){
+    tabsWrap.innerHTML='<div class="v-rod-tabs" id="v-rod-tabs">'+
+      rodLabels.map((lbl,i)=>`<button class="v-rod-tab${i===0?' on':''}" onclick="switchRod(${i})">${lbl}</button>`).join('')+'</div>';
+    document.getElementById('v-rod').textContent=ct.numero?'Contrato '+ct.numero:rodLabels.join(', ');
+  }else{
+    tabsWrap.innerHTML='';
+    document.getElementById('v-rod').textContent=rodLabels[0];
+  }
+
   renderTable();updateProg();
   go('scr-vistoria');
+}
+
+/* ===== Troca de rodovia ativa ===== */
+function switchRod(idx){
+  if(idx===rodAtivo||!kmsPorRod[idx])return;
+  rodAtivo=idx;
+  kms=kmsPorRod[idx];
+  /* Atualiza abas visuais */
+  document.querySelectorAll('.v-rod-tab').forEach((b,i)=>b.classList.toggle('on',i===idx));
+  renderTable();updateProg();
+  /* Scroll da tabela pro topo */
+  document.getElementById('v-table-wrap').scrollTop=0;
 }
 
 /* ===== Histórico (localStorage) ===== */
 function histKey(){return 'vp-'+CFG.rod+'-'+CFG.ki+'-'+CFG.kf;}
 function saveHist(){
   try{
-    const data=kms.map(k=>({a:k.a,b:k.b,
+    /* Salva TODOS os KMs de todas as rodovias */
+    const allKms=kmsPorRod.flat();
+    const data=allKms.map(k=>({a:k.a,b:k.b,rod:k.rod,
       capina:k.capina,rocada:k.rocada,limpeza:k.limpeza,
       desobst:k.desobst,caiacao:k.caiacao}));
     const{ind,total}=calc();
@@ -857,8 +902,11 @@ function loadHist(){
     if(!s)return false;
     const h=JSON.parse(s);
     if(!h||!h.data)return false;
+    /* Restaura em TODOS os KMs (todas as rodovias) */
+    const allKms=kmsPorRod.flat();
     h.data.forEach(saved=>{
-      const match=kms.find(k=>k.a===saved.a&&k.b===saved.b);
+      /* Procura por rod+km ou só km (compatibilidade) */
+      const match=allKms.find(k=>k.a===saved.a&&k.b===saved.b&&(!saved.rod||k.rod===saved.rod));
       if(match)ITENS.forEach(it=>{if(saved[it.id])match[it.id]=saved[it.id];});
     });
     return h;
@@ -977,19 +1025,33 @@ function toggleNA(kmIdx, itemId){
 
 /* ===== Progresso ===== */
 function updateProg(){
-  const done=kms.filter(k=>ITENS.every(i=>k[i.id]!==null)).length;
-  const pct=kms.length?(done/kms.length*100):0;
-  document.getElementById('prog').style.width=pct+'%';
-  document.getElementById('v-prog-txt').textContent=done+'/'+kms.length+' KMs';
+  /* Progresso GLOBAL (todas as rodovias) para barra e botão */
+  const allKms=kmsPorRod.flat();
+  const doneAll=allKms.filter(k=>ITENS.every(i=>k[i.id]!==null)).length;
+  const pctAll=allKms.length?(doneAll/allKms.length*100):0;
+  document.getElementById('prog').style.width=pctAll+'%';
+  document.getElementById('v-prog-txt').textContent=doneAll+'/'+allKms.length+' KMs';
   const btn=document.getElementById('btn-fin');
-  btn.textContent=done===kms.length?'Finalizar Vistoria':'Finalizar ('+done+'/'+kms.length+')';
+  btn.textContent=doneAll===allKms.length?'Finalizar Vistoria':'Finalizar ('+doneAll+'/'+allKms.length+')';
+
+  /* Progresso por rodovia nas abas (quando existem) */
+  if(kmsPorRod.length>1){
+    document.querySelectorAll('.v-rod-tab').forEach((tab,i)=>{
+      const rk=kmsPorRod[i]||[];
+      const rd=rk.filter(k=>ITENS.every(it=>k[it.id]!==null)).length;
+      let prog=tab.querySelector('.vrt-prog');
+      if(!prog){prog=document.createElement('span');prog.className='vrt-prog';tab.appendChild(prog);}
+      prog.textContent=rd+'/'+rk.length;
+    });
+  }
 }
 
 /* ===== Finalizar ===== */
 function finalizar(){
-  const done=kms.filter(k=>ITENS.every(i=>k[i.id]!==null)).length;
-  if(done<kms.length){
-    if(!confirm('Ainda faltam '+(kms.length-done)+' KMs. Finalizar mesmo assim?'))return;
+  const allKms=kmsPorRod.flat();
+  const done=allKms.filter(k=>ITENS.every(i=>k[i.id]!==null)).length;
+  if(done<allKms.length){
+    if(!confirm('Ainda faltam '+(allKms.length-done)+' KMs. Finalizar mesmo assim?'))return;
   }
   saveHist();
   go('scr-resultado');
@@ -998,9 +1060,11 @@ function finalizar(){
 /* ===== Cálculos ===== */
 function calc(){
   const r={};
+  /* Usa TODOS os KMs de todas as rodovias para o cálculo global */
+  const allKms=kmsPorRod.flat();
   Object.entries(IND).forEach(([key,ind])=>{
     let eT=0,eA=0;
-    kms.forEach(k=>{
+    allKms.forEach(k=>{
       const ext=k.b-k.a;
       const allNA=ind.ids.every(id=>k[id]==='NA');
       const e=allNA?0:ext;eT+=e;
@@ -1018,11 +1082,12 @@ function corBg(v){return v>=.90?'var(--okBg)':v>=.70?'rgba(217,162,43,.12)':'var
 /* ===== Resultado ===== */
 function buildRes(){
   const{ind,total}=calc();
-  const compl=kms.filter(k=>ITENS.every(i=>k[i.id]!==null)).length;
+  const allKmsRes=kmsPorRod.flat();
+  const compl=allKmsRes.filter(k=>ITENS.every(i=>k[i.id]!==null)).length;
   let h=`<div class="res-hero"><h2>Resultado da Vistoria</h2>
-    <p>${CFG.rod} · KM ${fk(CFG.ki)} ao ${fk(CFG.kf)} · ${fd(CFG.data)}</p></div>
+    <p>${CFG.rod} · ${fd(CFG.data)}</p></div>
     <div class="stat-grid">
-      <div class="stat-box"><div class="stat-val">${kms.length}</div><div class="stat-label">KMs</div></div>
+      <div class="stat-box"><div class="stat-val">${allKmsRes.length}</div><div class="stat-label">KMs</div></div>
       <div class="stat-box"><div class="stat-val">${compl}</div><div class="stat-label">Completos</div></div>
       <div class="stat-box"><div class="stat-val" style="color:${cor(total)}">${(total*100).toFixed(1)}%</div><div class="stat-label">Fator</div></div>
     </div><div class="section-label">Indicadores</div>`;
@@ -1061,8 +1126,9 @@ function buildPlan(){
       <div><span class="ld" style="background:var(--na)"></span> <b>NA</b> Não se Aplica</div>
     </div>
     <div class="sheet-wrap"><table class="sheet">
-    <thead><tr><th>KM</th><th>Capina</th><th>Roçada</th><th>Limpeza</th><th>Desobst.</th><th>Caiação</th><th>Veg.</th><th>Dren.</th><th>Caiaç.</th></tr></thead><tbody>`;
-  kms.forEach(k=>{
+    <thead><tr>${kmsPorRod.length>1?'<th>Rod.</th>':''}<th>KM</th><th>Capina</th><th>Roçada</th><th>Limpeza</th><th>Desobst.</th><th>Caiação</th><th>Veg.</th><th>Dren.</th><th>Caiaç.</th></tr></thead><tbody>`;
+  const allKmsPlan=kmsPorRod.flat();
+  allKmsPlan.forEach(k=>{
     function b(v){
       if(v==='C')return'<span class="scb scb-c">C</span>';
       if(v==='NC')return'<span class="scb scb-nc">NC</span>';
@@ -1076,7 +1142,7 @@ function buildPlan(){
     const cNA=k.caiacao==='NA';
     const cOk=!cNA&&k.caiacao!=='NC';
     function ib(ok,na){return na?'<span class="scb scb-na">NA</span>':ok?'<span class="scb scb-c">OK</span>':'<span class="scb scb-nc">NC</span>';}
-    h+=`<tr><td>${fk(k.a)}–${fk(k.b)}</td>
+    h+=`<tr>${kmsPorRod.length>1?`<td style="font-size:10px">${k.rod||''}</td>`:''}<td>${fk(k.a)}–${fk(k.b)}</td>
       <td>${b(k.capina)}</td><td>${b(k.rocada)}</td><td>${b(k.limpeza)}</td><td>${b(k.desobst)}</td><td>${b(k.caiacao)}</td>
       <td>${ib(vOk,vNA)}</td><td>${ib(dOk,dNA)}</td><td>${ib(cOk,cNA)}</td></tr>`;
   });
