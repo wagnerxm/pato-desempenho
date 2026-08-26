@@ -54,8 +54,6 @@
   header.top .logo{font-size:17px;font-weight:800;letter-spacing:-.01em;color:#1c2333}
   header.top .logo span{color:var(--gold);filter:drop-shadow(0 0 4px rgba(183,217,45,.3))}
   header.top .sub{margin-left:auto;font-size:9px;color:var(--mutLight);letter-spacing:.24em;text-transform:uppercase}
-  .version-tag{margin-left:8px;font-size:9px;font-weight:700;
-    background:var(--goldDim);color:#7a9d1a;padding:2px 8px;border-radius:999px;letter-spacing:.06em}
 
   /* ── Floating dock nav ── */
   nav{position:fixed;left:50%;transform:translateX(-50%);
@@ -107,62 +105,103 @@
   .btn:active{filter:brightness(1.15)}
   .btn.gold{background:var(--gold);border-color:var(--gold);color:#0d0f08;font-weight:700}
   .btn.ghost{background:transparent;border-color:rgba(255,255,255,.08);color:var(--mut)}
+  .btn.danger{background:transparent;border-color:rgba(239,83,80,.3);color:var(--nc)}
   .btn:disabled{opacity:.4;pointer-events:none}
 
   /* ═══════════════════════════════════════════════
-     CONFIG — layout fixo
+     TELA CONTRATOS (HOME)
      ═══════════════════════════════════════════════ */
-  #scr-config.on{display:flex !important;flex-direction:column;height:100%;overflow:hidden}
-  .cfg-top{flex-shrink:0;display:flex;align-items:center;gap:14px;padding:16px 18px 6px}
-  .cfg-icon{width:44px;height:44px;border-radius:13px;flex-shrink:0;
-    background:var(--goldDim);border:2px solid rgba(183,217,45,.25);
-    display:flex;align-items:center;justify-content:center}
-  .cfg-h1{font-size:17px;font-weight:800;color:#1c2333;letter-spacing:-.01em}
-  .cfg-sub{font-size:11px;color:var(--mutLight);margin-top:2px}
-  .cfg-body{flex:1;min-height:0;display:flex;flex-direction:column;
-    justify-content:center;padding:0 14px}
-  .cfg-card{padding:16px 18px !important;margin-bottom:0 !important}
-  .cfg-card label.f{margin:10px 0 4px}
-  .cfg-card label.f:first-child{margin-top:0}
-  .cfg-card input{padding:10px 12px;font-size:14px;border-radius:12px}
-  .cfg-legenda{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:12px;
-    border-top:1px solid rgba(255,255,255,.07);font-size:10px;color:var(--mut)}
-  .cfg-legenda b{font-weight:800}
-  .cfg-foot{flex-shrink:0;
-    padding:8px 14px calc(8px + var(--navH) + 10px + env(safe-area-inset-bottom,0px))}
-  .cfg-foot .btn{padding:14px 18px}
+  #scr-contratos{padding:14px}
+  .ct-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .ct-title{font-size:13px;font-weight:800;color:#1c2333;letter-spacing:-.01em}
+  .ct-count{font-size:11px;color:var(--mutLight);font-weight:600}
+  .ct-add-btn{width:44px;height:44px;border-radius:50%;border:none;
+    background:var(--gold);color:#0d0f08;font-size:24px;font-weight:700;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 14px rgba(183,217,45,.35);transition:transform .12s}
+  .ct-add-btn:active{transform:scale(.9)}
 
-  /* Histórico */
-  .hist-section{margin-top:12px;padding:0 14px}
-  .hist-title{font-size:10px;font-weight:700;text-transform:uppercase;
-    letter-spacing:.18em;color:var(--mutLight);margin-bottom:6px}
-  .hist-item{background:
-      linear-gradient(135deg,rgba(255,255,255,.06) 0%,transparent 30%),#121212;
-    border:1px solid var(--glassBorder);border-radius:14px;padding:10px 14px;
-    color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:10px;
-    font-size:12px;cursor:pointer;transition:border-color .15s}
-  .hist-item:active{border-color:var(--gold)}
-  .hist-dot{width:8px;height:8px;border-radius:50%;background:var(--gold);flex-shrink:0}
-  .hist-info{flex:1;min-width:0}
-  .hist-info .hi-rod{font-weight:700;color:#fff}
-  .hist-info .hi-sub{font-size:10px;color:var(--mut);margin-top:1px}
-  .hist-pct{font-weight:800;font-size:14px;font-variant-numeric:tabular-nums}
+  /* Card de contrato na lista */
+  .ct-card{position:relative;overflow:hidden;
+    background:
+      linear-gradient(135deg,rgba(255,255,255,.07) 0%,transparent 30%),
+      linear-gradient(200deg,transparent 55%,rgba(255,255,255,.03) 60%,transparent 68%),
+      #121212;
+    border:1px solid var(--glassBorder);border-radius:20px;padding:16px 18px;
+    margin-bottom:10px;color:var(--text);cursor:pointer;
+    transition:border-color .15s,transform .1s;
+    box-shadow:inset 0 1px 0 var(--glassRimTop),0 12px 28px rgba(0,0,0,.18),0 4px 12px rgba(0,0,0,.1)}
+  .ct-card:active{border-color:var(--gold);transform:scale(.98)}
+  .ct-card::before{content:'';position:absolute;left:0;right:0;bottom:0;height:60px;pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 160' preserveAspectRatio='none'%3E%3Cpath d='M0,90 C80,40 140,130 220,80 C300,35 340,110 400,70 L400,160 L0,160 Z' fill='%23ffffff' fill-opacity='0.03'/%3E%3C/svg%3E");
+    background-size:100% 100%;background-repeat:no-repeat}
+  .ct-row1{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .ct-numero{font-size:11px;font-weight:800;color:var(--gold);letter-spacing:.06em}
+  .ct-uf{font-size:10px;font-weight:700;background:rgba(255,255,255,.08);
+    padding:2px 8px;border-radius:999px;color:var(--mut)}
+  .ct-empresa{font-size:14px;font-weight:700;color:#fff;margin-bottom:6px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ct-rod{font-size:12px;color:var(--mut);font-weight:600;margin-bottom:3px}
+  .ct-trecho{font-size:11px;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
+  .ct-last{font-size:10px;color:rgba(255,255,255,.3);margin-top:6px;
+    display:flex;align-items:center;gap:6px}
+  .ct-last-dot{width:6px;height:6px;border-radius:50%}
 
-  @media (max-height:600px){
-    .cfg-top{padding:10px 18px 4px}
-    .cfg-icon{width:36px;height:36px;font-size:18px;border-radius:10px}
-    .cfg-h1{font-size:15px}
-    .cfg-sub{font-size:10px}
-    .cfg-card label.f{margin:6px 0 3px;font-size:9px}
-    .cfg-card input{padding:8px 10px;font-size:13px;border-radius:10px}
-    .cfg-legenda{margin-top:10px;padding-top:8px;font-size:9px;gap:8px}
-    .cfg-foot{padding-top:6px}
-    .cfg-foot .btn{padding:12px 14px;font-size:14px}
-  }
+  /* Estado vazio */
+  .ct-empty{text-align:center;padding:60px 30px;color:var(--mutLight)}
+  .ct-empty-icon{font-size:48px;margin-bottom:14px;opacity:.3}
+  .ct-empty p{font-size:13px;line-height:1.6}
+  .ct-empty .btn{margin-top:18px;width:auto;display:inline-flex;padding:14px 28px}
 
   /* ═══════════════════════════════════════════════
-     VISTORIA V3 — TABELA COM BOTÕES C / NC
-     Pressão longa → NA
+     MODAL DE CADASTRO DE CONTRATO
+     ═══════════════════════════════════════════════ */
+  .modal-overlay{position:fixed;inset:0;z-index:50;
+    background:rgba(0,0,0,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    display:none;align-items:flex-end;justify-content:center}
+  .modal-overlay.on{display:flex}
+  .modal-sheet{width:100%;max-width:480px;max-height:92vh;overflow-y:auto;
+    background:var(--bg);border-radius:24px 24px 0 0;
+    padding:0 0 calc(20px + env(safe-area-inset-bottom,0px));
+    animation:sheetUp .25s ease-out}
+  @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .modal-handle{width:36px;height:4px;border-radius:2px;background:rgba(0,0,0,.15);
+    margin:10px auto 6px}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;
+    padding:8px 20px 14px;border-bottom:1px solid rgba(0,0,0,.06)}
+  .modal-title{font-size:17px;font-weight:800;color:#1c2333}
+  .modal-close{background:none;border:none;font-size:22px;color:var(--mutLight);
+    cursor:pointer;padding:4px 8px;font-weight:600}
+  .modal-body{padding:10px 20px}
+  .modal-body label.f{display:block;font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--mutLight);margin:14px 0 5px;font-weight:700}
+  .modal-body label.f:first-child{margin-top:6px}
+  .modal-body input[type=text],.modal-body input[type=number],.modal-body select{
+    width:100%;background:#fff;border:1.5px solid rgba(0,0,0,.1);
+    border-radius:14px;color:#1c2333;padding:12px 14px;font-size:15px;
+    font-family:var(--mono);outline:none;-webkit-appearance:none;transition:border-color .15s}
+  .modal-body input:focus,.modal-body select:focus{border-color:var(--gold)}
+  .modal-body .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .modal-body .trecho-preview{background:rgba(183,217,45,.08);border:1px solid rgba(183,217,45,.2);
+    border-radius:12px;padding:10px 14px;font-size:13px;font-weight:600;color:#5a7a14;
+    margin-top:6px;font-variant-numeric:tabular-nums;min-height:40px;
+    display:flex;align-items:center}
+  .modal-foot{padding:14px 20px 0}
+  .modal-foot .btn{padding:15px 18px}
+
+  /* ═══ Opções do contrato (excluir etc.) ═══ */
+  .ct-actions{display:flex;gap:8px;margin-top:10px;padding-top:10px;
+    border-top:1px solid rgba(255,255,255,.06)}
+  .ct-act-btn{background:none;border:1px solid rgba(255,255,255,.08);
+    border-radius:999px;padding:6px 14px;font-size:10px;font-weight:700;
+    color:var(--mut);cursor:pointer;font-family:var(--sans);letter-spacing:.04em;
+    transition:border-color .15s,color .15s}
+  .ct-act-btn:active{border-color:var(--gold);color:var(--gold)}
+  .ct-act-btn.del{border-color:rgba(239,83,80,.2);color:rgba(239,83,80,.6)}
+  .ct-act-btn.del:active{border-color:var(--nc);color:var(--nc)}
+
+  /* ═══════════════════════════════════════════════
+     VISTORIA — TABELA COM BOTÕES C / NC
      ═══════════════════════════════════════════════ */
   #scr-vistoria.on{display:flex !important;flex-direction:column;height:100%;overflow:hidden}
 
@@ -182,37 +221,30 @@
   .v-hist-banner .hb-x{margin-left:auto;background:none;border:none;
     font-size:14px;color:#6a7d1a;cursor:pointer;padding:0 4px;font-weight:700}
 
-  /* Dica de pressão longa */
   .v-hint{flex-shrink:0;padding:4px 14px;text-align:center;
     font-size:9px;color:var(--mutLight);font-weight:500;
     background:rgba(0,0,0,.015);border-bottom:1px solid rgba(0,0,0,.04)}
 
-  /* Container da tabela: rola verticalmente */
   .v-table-wrap{flex:1;min-height:0;overflow-y:auto;overflow-x:auto;
     -webkit-overflow-scrolling:touch}
 
-  /* Tabela */
   .v-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;
     min-width:370px}
   .v-table thead{position:sticky;top:0;z-index:5}
   .v-table th{padding:6px 2px;text-align:center;font-weight:800;font-size:8px;
     letter-spacing:.04em;text-transform:uppercase;color:#fff;
     background:#2a2d31;white-space:nowrap}
-  /* Linha inferior do cabeçalho — borda dourada embaixo */
   .v-table tr.hdr-cols th{border-bottom:2px solid var(--gold);padding:4px 2px}
-  /* Linha de grupo — separadores entre grupos */
   .v-table tr.hdr-grp th{border-bottom:1px solid rgba(255,255,255,.12);
     font-size:9px;letter-spacing:.12em;padding:6px 2px 2px;color:var(--gold)}
   .v-table th.th-km{text-align:center;padding-left:6px;
     position:sticky;left:0;z-index:6;background:#2a2d31;
     border-bottom:2px solid var(--gold)}
 
-  /* Células */
   .v-table td{padding:4px 2px;text-align:center;border-bottom:1px solid rgba(0,0,0,.06);
     vertical-align:middle;background:#fff}
   .v-table tr:nth-child(even) td{background:#f8f8f7}
 
-  /* KM fixo à esquerda */
   .v-table td:first-child{position:sticky;left:0;z-index:2;
     font-weight:800;font-size:12px;color:#1c2333;
     padding:4px 6px;white-space:nowrap;
@@ -221,38 +253,24 @@
   .v-table tr:nth-child(odd) td:first-child{background:#fff}
   .v-table tr.row-done td:first-child{color:var(--ok)}
 
-  /* ═══ Botão único por célula — cicla - / C / NC, long press = NA ═══ */
   .vbtn{width:42px;height:36px;border-radius:9px;border:none;
     font-family:var(--sans);font-size:13px;font-weight:800;
     cursor:pointer;transition:all .12s ease;
     display:flex;align-items:center;justify-content:center;
     margin:2px auto;position:relative;outline:none;
     touch-action:manipulation;-webkit-user-select:none;user-select:none;
-    /* estado padrão: não avaliado */
     background:#e8e8e4;color:rgba(0,0,0,.28);
     box-shadow:0 1px 3px rgba(0,0,0,.07)}
   .vbtn:active{transform:scale(.90)}
-
-  /* C selecionado — verde */
-  .vbtn[data-v="C"]{background:#4caf50;color:#fff;
-    box-shadow:0 2px 8px rgba(76,175,80,.35)}
-
-  /* NC selecionado — vermelho */
-  .vbtn[data-v="NC"]{background:#ef5350;color:#fff;
-    box-shadow:0 2px 8px rgba(239,83,80,.35)}
-
-  /* NA — grafite sólido */
-  .vbtn[data-v="NA"]{background:#3a3a3a;color:#b0b0b0;
-    box-shadow:0 1px 3px rgba(0,0,0,.18);font-size:11px}
-
-  /* Feedback visual de pressão longa */
+  .vbtn[data-v="C"]{background:#4caf50;color:#fff;box-shadow:0 2px 8px rgba(76,175,80,.35)}
+  .vbtn[data-v="NC"]{background:#ef5350;color:#fff;box-shadow:0 2px 8px rgba(239,83,80,.35)}
+  .vbtn[data-v="NA"]{background:#3a3a3a;color:#b0b0b0;box-shadow:0 1px 3px rgba(0,0,0,.18);font-size:11px}
   @keyframes holdPulse{
     0%{box-shadow:0 0 0 0 rgba(158,158,158,.4)}
     100%{box-shadow:0 0 0 10px rgba(158,158,158,0)}
   }
   .vbtn.holding{animation:holdPulse .6s ease-out}
 
-  /* Rodapé */
   .v-foot{flex-shrink:0;padding:6px 14px calc(6px + var(--navH) + 10px + env(safe-area-inset-bottom,0px));
     display:flex;flex-direction:column;gap:6px}
   .v-foot .btn{padding:13px 18px;font-size:14px}
@@ -261,7 +279,6 @@
   .v-foot-leg .fl-dot{width:10px;height:10px;border-radius:3px;display:inline-block;
     vertical-align:middle;margin-right:3px}
 
-  /* Telas curtas / landscape */
   @media (max-height:520px){
     header.top{padding-top:calc(6px + env(safe-area-inset-top,0px));padding-bottom:6px}
     .v-info-bar{padding:4px 10px;font-size:10px}
@@ -358,53 +375,19 @@
   </header>
 
   <main id="main">
-    <!-- ═══ CONFIG ═══ -->
-    <div class="screen on" id="scr-config">
-      <div class="cfg-top">
-        <div class="cfg-icon" style="font-size:15px;font-weight:800;color:var(--gold);font-family:var(--sans)">KM</div>
+    <!-- ═══ CONTRATOS (HOME) ═══ -->
+    <div class="screen on" id="scr-contratos">
+      <div class="ct-header">
         <div>
-          <div class="cfg-h1">Avaliação por Desempenho</div>
-          <div class="cfg-sub">Inspeção de campo — Resolução DNIT nº 8/2023, Grupo I</div>
+          <div class="ct-title">Meus Contratos</div>
+          <div class="ct-count" id="ct-count"></div>
         </div>
+        <button class="ct-add-btn" onclick="showModal()" title="Novo contrato">+</button>
       </div>
-      <div class="cfg-body">
-        <div class="card cfg-card">
-          <div class="field-row">
-            <div>
-              <label class="f">Rodovia</label>
-              <input type="text" id="inp-rod" value="BR-226/RN">
-            </div>
-            <div>
-              <label class="f">Data</label>
-              <input type="date" id="inp-data">
-            </div>
-          </div>
-          <label class="f">Trecho / Lote</label>
-          <input type="text" id="inp-trecho" value="Km 290,32 ao Km 421,02">
-          <label class="f">Faixa de KMs</label>
-          <div class="field-row">
-            <div><input type="number" id="inp-ki" value="290" placeholder="Inicial"></div>
-            <div><input type="number" id="inp-kf" value="300" placeholder="Final"></div>
-          </div>
-          <label class="f">Fiscal</label>
-          <input type="text" id="inp-fiscal" placeholder="Nome do fiscal">
-          <div class="cfg-legenda">
-            <span><span class="ld" style="background:var(--ok)"></span> <b>C</b> Conforme</span>
-            <span><span class="ld" style="background:var(--nc)"></span> <b>NC</b> Não Conf.</span>
-            <span><span class="ld" style="background:var(--na)"></span> <b>NA</b> N/Aplica</span>
-          </div>
-        </div>
-      </div>
-      <div class="hist-section" id="hist-section" style="display:none">
-        <div class="hist-title">Histórico</div>
-        <div id="hist-list"></div>
-      </div>
-      <div class="cfg-foot">
-        <button class="btn gold" onclick="iniciar()">Iniciar Vistoria →</button>
-      </div>
+      <div id="ct-list"></div>
     </div>
 
-    <!-- ═══ VISTORIA — tabela com botões C/NC + pressão longa = NA ═══ -->
+    <!-- ═══ VISTORIA ═══ -->
     <div class="screen" id="scr-vistoria">
       <div class="prog-bar"><div class="prog-fill" id="prog"></div></div>
       <div class="v-info-bar">
@@ -448,7 +431,7 @@
     <div class="screen" id="scr-resultado">
       <div class="res-pad" id="res-body">
         <div style="text-align:center;padding:60px 20px;color:var(--mutLight)">
-          <p style="font-size:13px">Inicie a vistoria para ver os resultados.</p>
+          <p style="font-size:13px">Selecione um contrato para iniciar.</p>
         </div>
       </div>
     </div>
@@ -465,9 +448,9 @@
 
   <!-- ═══ DOCK NAV ═══ -->
   <nav id="dock">
-    <button class="on" data-s="scr-config" onclick="go('scr-config')">
-      <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>
-      Config
+    <button class="on" data-s="scr-contratos" onclick="go('scr-contratos')">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 012-2h14a2 2 0 012 2v2"/><rect x="1" y="7" width="22" height="14" rx="2"/><path d="M12 11v6M9 14h6"/></svg></div>
+      Contratos
     </button>
     <button data-s="scr-vistoria" onclick="go('scr-vistoria')">
       <div class="ic"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
@@ -484,8 +467,58 @@
   </nav>
 </div>
 
+<!-- ═══ MODAL: Novo Contrato ═══ -->
+<div class="modal-overlay" id="modal-contrato">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-head">
+      <div class="modal-title" id="modal-title">Novo Contrato</div>
+      <button class="modal-close" onclick="hideModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="f">Nº do Contrato</label>
+      <input type="text" id="m-numero" placeholder="Ex: 00123/2024-00">
+
+      <label class="f">Empresa Executora</label>
+      <input type="text" id="m-empresa" placeholder="Nome da construtora">
+
+      <div class="field-row">
+        <div>
+          <label class="f">UF</label>
+          <select id="m-uf">
+            <option value="">Selecione</option>
+            <option>AC</option><option>AL</option><option>AM</option><option>AP</option>
+            <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+            <option>GO</option><option>MA</option><option>MG</option><option>MS</option>
+            <option>MT</option><option>PA</option><option>PB</option><option>PE</option>
+            <option>PI</option><option>PR</option><option>RJ</option><option selected>RN</option>
+            <option>RO</option><option>RR</option><option>RS</option><option>SC</option>
+            <option>SE</option><option>SP</option><option>TO</option>
+          </select>
+        </div>
+        <div>
+          <label class="f">Rodovia</label>
+          <input type="text" id="m-rodovia" placeholder="Ex: BR-226">
+        </div>
+      </div>
+
+      <label class="f">Faixa de KMs</label>
+      <div class="field-row">
+        <div><input type="number" id="m-ki" placeholder="KM Inicial" oninput="atualizaTrecho()"></div>
+        <div><input type="number" id="m-kf" placeholder="KM Final" oninput="atualizaTrecho()"></div>
+      </div>
+
+      <label class="f">Trecho</label>
+      <div class="trecho-preview" id="m-trecho-preview">Preencha os KMs acima</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn gold" id="m-salvar-btn" onclick="salvarContrato()">Cadastrar Contrato</button>
+    </div>
+  </div>
+</div>
+
 <script>
-/* ===== Dados ===== */
+/* ===== Dados de avaliação ===== */
 const ITENS = [
   {id:'capina',  g:'veg', nome:'Capina',       col:'C'},
   {id:'rocada',  g:'veg', nome:'Roçada',       col:'D'},
@@ -505,6 +538,204 @@ function coef(pct){
 
 /* ===== Estado ===== */
 let CFG={}, kms=[], started=false;
+let contratoAtivo=null; /* id do contrato aberto na vistoria */
+let editandoId=null;    /* id do contrato sendo editado no modal */
+
+/* ===== Contratos (localStorage) ===== */
+const CK='pd-contratos'; /* chave localStorage dos contratos */
+function getContratos(){
+  try{return JSON.parse(localStorage.getItem(CK)||'[]');}catch(e){return[];}
+}
+function setContratos(list){
+  try{localStorage.setItem(CK,JSON.stringify(list));}catch(e){}
+}
+function fkm(v){
+  if(v==null)return'0';
+  const n=parseFloat(v);
+  return Number.isInteger(n)?''+n:n.toFixed(2).replace('.',',');
+}
+
+/* ===== Render da lista de contratos ===== */
+function renderContratos(){
+  const list=getContratos();
+  const el=document.getElementById('ct-list');
+  const cnt=document.getElementById('ct-count');
+  cnt.textContent=list.length?list.length+' contrato'+(list.length>1?'s':''):'';
+
+  if(!list.length){
+    el.innerHTML=`<div class="ct-empty">
+      <div class="ct-empty-icon">📋</div>
+      <p>Nenhum contrato cadastrado.<br>Toque no <b>+</b> para adicionar.</p>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML=list.map(ct=>{
+    /* Busca última vistoria salva para este contrato */
+    const hk='vp-'+ct.rodovia+'/'+ct.uf+'-'+ct.ki+'-'+ct.kf;
+    let lastInfo='';
+    try{
+      const h=JSON.parse(localStorage.getItem(hk)||'null');
+      if(h){
+        const pct=(h.total*100).toFixed(1);
+        const c=h.total>=.90?'var(--ok)':h.total>=.70?'var(--warn)':'var(--nc)';
+        lastInfo=`<div class="ct-last">
+          <span class="ct-last-dot" style="background:${c}"></span>
+          Última: ${fd(h.date)||'—'} · Fator ${pct}%
+        </div>`;
+      }
+    }catch(e){}
+
+    return `<div class="ct-card" onclick="abrirContrato('${ct.id}')">
+      <div class="ct-row1">
+        <div class="ct-numero">Contrato ${ct.numero||'S/N'}</div>
+        <div class="ct-uf">${ct.uf||'—'}</div>
+      </div>
+      <div class="ct-empresa">${ct.empresa||'Empresa não informada'}</div>
+      <div class="ct-rod">${ct.rodovia||'—'}/${ct.uf||''}</div>
+      <div class="ct-trecho">${ct.trecho}</div>
+      ${lastInfo}
+      <div class="ct-actions" onclick="event.stopPropagation()">
+        <button class="ct-act-btn" onclick="editarContrato('${ct.id}')">Editar</button>
+        <button class="ct-act-btn del" onclick="excluirContrato('${ct.id}')">Excluir</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ===== Modal: Novo / Editar Contrato ===== */
+function showModal(){
+  editandoId=null;
+  document.getElementById('modal-title').textContent='Novo Contrato';
+  document.getElementById('m-salvar-btn').textContent='Cadastrar Contrato';
+  document.getElementById('m-numero').value='';
+  document.getElementById('m-empresa').value='';
+  document.getElementById('m-uf').value='RN';
+  document.getElementById('m-rodovia').value='';
+  document.getElementById('m-ki').value='';
+  document.getElementById('m-kf').value='';
+  document.getElementById('m-trecho-preview').textContent='Preencha os KMs acima';
+  document.getElementById('modal-contrato').classList.add('on');
+}
+function hideModal(){
+  document.getElementById('modal-contrato').classList.remove('on');
+  editandoId=null;
+}
+function editarContrato(id){
+  const list=getContratos();
+  const ct=list.find(c=>c.id===id);
+  if(!ct)return;
+  editandoId=id;
+  document.getElementById('modal-title').textContent='Editar Contrato';
+  document.getElementById('m-salvar-btn').textContent='Salvar Alterações';
+  document.getElementById('m-numero').value=ct.numero||'';
+  document.getElementById('m-empresa').value=ct.empresa||'';
+  document.getElementById('m-uf').value=ct.uf||'';
+  document.getElementById('m-rodovia').value=ct.rodovia||'';
+  document.getElementById('m-ki').value=ct.ki||'';
+  document.getElementById('m-kf').value=ct.kf||'';
+  atualizaTrecho();
+  document.getElementById('modal-contrato').classList.add('on');
+}
+
+/* Auto-gera o trecho conforme o fiscal digita os KMs */
+function atualizaTrecho(){
+  const ki=parseFloat(document.getElementById('m-ki').value);
+  const kf=parseFloat(document.getElementById('m-kf').value);
+  const el=document.getElementById('m-trecho-preview');
+  if(isNaN(ki)||isNaN(kf)||kf<=ki){
+    el.textContent='Preencha os KMs acima';return;
+  }
+  el.textContent='KM '+fkm(ki)+' ao KM '+fkm(kf);
+}
+
+/* Salvar contrato (novo ou edição) */
+function salvarContrato(){
+  const numero=document.getElementById('m-numero').value.trim();
+  const empresa=document.getElementById('m-empresa').value.trim();
+  const uf=document.getElementById('m-uf').value;
+  const rodovia=document.getElementById('m-rodovia').value.trim();
+  const ki=parseFloat(document.getElementById('m-ki').value);
+  const kf=parseFloat(document.getElementById('m-kf').value);
+
+  if(!rodovia)return alert('Informe a rodovia.');
+  if(isNaN(ki)||isNaN(kf)||kf<=ki)return alert('KM Final deve ser maior que KM Inicial.');
+  if(kf-ki>200)return alert('Máximo 200 km por contrato.');
+
+  const trecho='KM '+fkm(ki)+' ao KM '+fkm(kf);
+  const list=getContratos();
+
+  if(editandoId){
+    /* Editando existente */
+    const idx=list.findIndex(c=>c.id===editandoId);
+    if(idx>=0){
+      list[idx]={...list[idx],numero,empresa,uf,rodovia,ki,kf,trecho};
+    }
+  }else{
+    /* Novo contrato */
+    list.push({
+      id:'ct-'+Date.now(),
+      numero,empresa,uf,rodovia,ki,kf,trecho,
+      criadoEm:Date.now()
+    });
+  }
+
+  setContratos(list);
+  hideModal();
+  renderContratos();
+}
+
+function excluirContrato(id){
+  if(!confirm('Excluir este contrato?'))return;
+  const list=getContratos().filter(c=>c.id!==id);
+  setContratos(list);
+  renderContratos();
+}
+
+/* ===== Abrir contrato → vai direto pra vistoria ===== */
+function abrirContrato(id){
+  const list=getContratos();
+  const ct=list.find(c=>c.id===id);
+  if(!ct)return;
+
+  contratoAtivo=id;
+  const rod=ct.rodovia+(ct.uf?'/'+ct.uf:'');
+  CFG={
+    rod:rod,
+    trecho:ct.trecho,
+    data:new Date().toISOString().split('T')[0], /* hoje */
+    fiscal:'',
+    ki:ct.ki,
+    kf:ct.kf,
+    numero:ct.numero,
+    empresa:ct.empresa
+  };
+
+  /* Gera os KMs */
+  kms=[];
+  let f=ct.ki;
+  while(f<ct.kf){
+    const t=Math.min(Math.ceil(f+.001),ct.kf);
+    const n=f===t?ct.kf:t;
+    kms.push({a:f,b:n,capina:null,rocada:null,limpeza:null,desobst:null,caiacao:null});
+    f=n;if(f>=ct.kf)break;
+  }
+  started=true;
+
+  /* Carrega histórico anterior se existir */
+  const prev=loadHist();
+  const bw=document.getElementById('v-banner-wrap');
+  if(prev){
+    bw.innerHTML=`<div class="v-hist-banner">
+      Dados da vistoria anterior${prev.date?' ('+fd(prev.date)+')':''} carregados
+      <button class="hb-x" onclick="this.parentElement.remove()">×</button>
+    </div>`;
+  }else{bw.innerHTML='';}
+
+  document.getElementById('v-rod').textContent=rod;
+  renderTable();updateProg();
+  go('scr-vistoria');
+}
 
 /* ===== Histórico (localStorage) ===== */
 function histKey(){return 'vp-'+CFG.rod+'-'+CFG.ki+'-'+CFG.kf;}
@@ -516,14 +747,9 @@ function saveHist(){
     const{ind,total}=calc();
     localStorage.setItem(histKey(),JSON.stringify(
       {data,date:CFG.data,fiscal:CFG.fiscal,rod:CFG.rod,
-       trecho:CFG.trecho,ki:CFG.ki,kf:CFG.kf,total,ts:Date.now()}));
-    let idx=[];
-    try{idx=JSON.parse(localStorage.getItem('vp-index')||'[]');}catch(e){}
-    const k=histKey();
-    idx=idx.filter(x=>x.key!==k);
-    idx.unshift({key:k,rod:CFG.rod,ki:CFG.ki,kf:CFG.kf,date:CFG.data,total,ts:Date.now()});
-    if(idx.length>20)idx=idx.slice(0,20);
-    localStorage.setItem('vp-index',JSON.stringify(idx));
+       trecho:CFG.trecho,ki:CFG.ki,kf:CFG.kf,
+       numero:CFG.numero,empresa:CFG.empresa,
+       total,ts:Date.now()}));
   }catch(e){}
 }
 function loadHist(){
@@ -539,39 +765,6 @@ function loadHist(){
     return h;
   }catch(e){return false;}
 }
-function renderHistList(){
-  try{
-    const idx=JSON.parse(localStorage.getItem('vp-index')||'[]');
-    const sec=document.getElementById('hist-section');
-    const list=document.getElementById('hist-list');
-    if(!idx.length){sec.style.display='none';return;}
-    sec.style.display='block';
-    list.innerHTML=idx.slice(0,5).map(h=>{
-      const pct=(h.total*100).toFixed(1);
-      const c=h.total>=.90?'var(--ok)':h.total>=.70?'var(--warn)':'var(--nc)';
-      return `<div class="hist-item" onclick="loadFromHist('${h.key}')">
-        <div class="hist-dot"></div>
-        <div class="hist-info">
-          <div class="hi-rod">${h.rod} · KM ${h.ki}–${h.kf}</div>
-          <div class="hi-sub">${fd(h.date)||'Sem data'}</div>
-        </div>
-        <div class="hist-pct" style="color:${c}">${pct}%</div>
-      </div>`;
-    }).join('');
-  }catch(e){}
-}
-function loadFromHist(key){
-  try{
-    const s=localStorage.getItem(key);if(!s)return;
-    const h=JSON.parse(s);
-    document.getElementById('inp-rod').value=h.rod||'';
-    document.getElementById('inp-data').value=h.date||'';
-    document.getElementById('inp-trecho').value=h.trecho||'';
-    document.getElementById('inp-ki').value=h.ki||0;
-    document.getElementById('inp-kf').value=h.kf||0;
-    if(h.fiscal)document.getElementById('inp-fiscal').value=h.fiscal;
-  }catch(e){}
-}
 
 /* ===== Nav ===== */
 function go(id){
@@ -579,47 +772,18 @@ function go(id){
   document.getElementById(id).classList.add('on');
   document.querySelectorAll('nav button').forEach(b=>
     b.classList.toggle('on',b.dataset.s===id));
-  const fixed=id==='scr-config'||id==='scr-vistoria';
+  const fixed=id==='scr-vistoria';
   document.getElementById('main').classList.toggle('fixed-mode',fixed);
+  if(id==='scr-contratos')renderContratos();
   if(id==='scr-resultado'&&started)buildRes();
   if(id==='scr-planilha'&&started)buildPlan();
 }
 
-/* ===== Iniciar ===== */
-function iniciar(){
-  const ki=parseFloat(document.getElementById('inp-ki').value)||0;
-  const kf=parseFloat(document.getElementById('inp-kf').value)||0;
-  if(kf<=ki)return alert('KM Final deve ser maior que KM Inicial.');
-  if(kf-ki>200)return alert('Máximo 200 km.');
-  CFG={rod:document.getElementById('inp-rod').value||'Rodovia',
-    trecho:document.getElementById('inp-trecho').value||'',
-    data:document.getElementById('inp-data').value||'',
-    fiscal:document.getElementById('inp-fiscal').value||'',ki,kf};
-  kms=[];
-  let f=ki;
-  while(f<kf){
-    const t=Math.min(Math.ceil(f+.001),kf);
-    const n=f===t?kf:t;
-    kms.push({a:f,b:n,capina:null,rocada:null,limpeza:null,desobst:null,caiacao:null});
-    f=n;if(f>=kf)break;
-  }
-  started=true;
-  const prev=loadHist();
-  const bw=document.getElementById('v-banner-wrap');
-  if(prev){
-    bw.innerHTML=`<div class="v-hist-banner">
-      Dados da vistoria anterior${prev.date?' ('+fd(prev.date)+')':''} carregados
-      <button class="hb-x" onclick="this.parentElement.remove()">×</button>
-    </div>`;
-  }else{bw.innerHTML='';}
-  document.getElementById('v-rod').textContent=CFG.rod;
-  renderTable();updateProg();
-  go('scr-vistoria');
-}
+/* ===== Formatação ===== */
 function fk(v){return Number.isInteger(v)?''+v:v.toFixed(2).replace('.',',')}
 function fd(d){if(!d)return'';const[y,m,dd]=d.split('-');return dd+'/'+m+'/'+y}
 
-/* ===== Render da tabela — um botão único por célula ===== */
+/* ===== Render da tabela ===== */
 function renderTable(){
   const tbody=document.getElementById('v-tbody');
   let html='';
@@ -637,7 +801,6 @@ function renderTable(){
   tbody.innerHTML=html;
 }
 
-/* ===== Atualiza célula individual (sem re-render da tabela inteira) ===== */
 function updateCell(kmIdx, itemId){
   const k=kms[kmIdx];
   const v=k[itemId];
@@ -645,64 +808,47 @@ function updateCell(kmIdx, itemId){
   if(!btn)return;
   btn.setAttribute('data-v',v||'');
   btn.textContent=v||'—';
-  /* Marca linha completa */
   const row=btn.closest('tr');
   row.classList.toggle('row-done',ITENS.every(it=>k[it.id]!==null));
   updateProg();
 }
 
-/* ===== Clique curto: alterna C ↔ NC (primeira vez: — → C) ===== */
 function cycleBtn(kmIdx, itemId){
   const k=kms[kmIdx];
   const cur=k[itemId];
-  /* Nunca clicado (null/—) → C; depois alterna C ↔ NC */
   if(cur===null) k[itemId]='C';
   else if(cur==='C') k[itemId]='NC';
   else if(cur==='NC') k[itemId]='C';
-  else k[itemId]='C'; /* Se estava NA e clicou → vai pra C */
+  else k[itemId]='C';
   updateCell(kmIdx,itemId);
 }
 
-/* ===== Pressão longa: ativa/desativa NA ===== */
 function toggleNA(kmIdx, itemId){
   const k=kms[kmIdx];
   k[itemId]=k[itemId]==='NA'?null:'NA';
   updateCell(kmIdx,itemId);
 }
 
-/* ===== Gerenciamento de toque / pressão longa (event delegation) ===== */
+/* ===== Touch / pressão longa (event delegation) ===== */
 (function(){
-  const HOLD_MS=600; /* tempo para ativar NA */
+  const HOLD_MS=600;
   let timer=null, fired=false, sx=0, sy=0;
   let activeKm=-1, activeItem='';
-
   const tbody=document.getElementById('v-tbody');
+  function findBtn(el){return el.closest('.vbtn');}
 
-  function findBtn(el){
-    return el.closest('.vbtn');
-  }
-
-  /* Pointer down — inicia timer de pressão longa */
   function onDown(e){
-    const btn=findBtn(e.target);
-    if(!btn)return;
+    const btn=findBtn(e.target);if(!btn)return;
     fired=false;
-    activeKm=+btn.dataset.km;
-    activeItem=btn.dataset.item;
+    activeKm=+btn.dataset.km;activeItem=btn.dataset.item;
     const pt=e.touches?e.touches[0]:e;
-    sx=pt.clientX; sy=pt.clientY;
-
-    /* Feedback visual */
+    sx=pt.clientX;sy=pt.clientY;
     btn.classList.add('holding');
-
     timer=setTimeout(()=>{
-      fired=true;
-      toggleNA(activeKm,activeItem);
+      fired=true;toggleNA(activeKm,activeItem);
       btn.classList.remove('holding');
     },HOLD_MS);
   }
-
-  /* Movimento — cancela se deslocou (indica scroll) */
   function onMove(e){
     if(!timer)return;
     const pt=e.touches?e.touches[0]:e;
@@ -711,22 +857,14 @@ function toggleNA(kmIdx, itemId){
       tbody.querySelectorAll('.holding').forEach(el=>el.classList.remove('holding'));
     }
   }
-
-  /* Soltar — se não foi pressão longa, trata como clique (cicla estado) */
   function onUp(e){
     clearTimeout(timer);timer=null;
     tbody.querySelectorAll('.holding').forEach(el=>el.classList.remove('holding'));
-    if(fired){fired=false;return;} /* Pressão longa já tratou */
-
-    const btn=findBtn(e.target);
-    if(!btn)return;
-    cycleBtn(+btn.dataset.km, btn.dataset.item);
+    if(fired){fired=false;return;}
+    const btn=findBtn(e.target);if(!btn)return;
+    cycleBtn(+btn.dataset.km,btn.dataset.item);
   }
-
-  /* Previne menu de contexto (aparece com pressão longa no mobile) */
-  function onCtx(e){
-    if(findBtn(e.target))e.preventDefault();
-  }
+  function onCtx(e){if(findBtn(e.target))e.preventDefault();}
 
   tbody.addEventListener('touchstart',onDown,{passive:true});
   tbody.addEventListener('touchmove',onMove,{passive:true});
@@ -735,11 +873,7 @@ function toggleNA(kmIdx, itemId){
   tbody.addEventListener('mousemove',onMove);
   tbody.addEventListener('mouseup',onUp);
   tbody.addEventListener('contextmenu',onCtx);
-
-  /* Previne cliques fantasma do navegador após touch events */
-  tbody.addEventListener('click',e=>{
-    if(findBtn(e.target))e.preventDefault();
-  });
+  tbody.addEventListener('click',e=>{if(findBtn(e.target))e.preventDefault();});
 })();
 
 /* ===== Progresso ===== */
@@ -860,18 +994,23 @@ function buildPlan(){
   h+=`<div class="info-card">
     <div><strong>Rodovia:</strong> ${CFG.rod}</div>
     <div><strong>Trecho:</strong> ${CFG.trecho}</div>
+    ${CFG.numero?`<div><strong>Contrato:</strong> ${CFG.numero}</div>`:''}
+    ${CFG.empresa?`<div><strong>Empresa:</strong> ${CFG.empresa}</div>`:''}
     <div><strong>Data:</strong> ${fd(CFG.data)}</div>
-    ${CFG.fiscal?`<div><strong>Fiscal:</strong> ${CFG.fiscal}</div>`:''}
     <div><strong>Base:</strong> Resolução DNIT nº 8/2023 · Grupo I</div>
   </div>`;
   document.getElementById('plan-body').innerHTML=h;
 }
 
-/* ===== Init ===== */
-document.getElementById('inp-data').value=new Date().toISOString().split('T')[0];
-renderHistList();
+/* ===== Fechar modal ao clicar no fundo ===== */
+document.getElementById('modal-contrato').addEventListener('click',function(e){
+  if(e.target===this)hideModal();
+});
 
-/* ===== Service Worker — permite instalar como PWA e funcionar offline ===== */
+/* ===== Init ===== */
+renderContratos();
+
+/* ===== Service Worker ===== */
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('sw.js')
     .then(r=>r.update())
