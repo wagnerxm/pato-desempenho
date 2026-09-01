@@ -461,7 +461,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 22</div>
+    <div class="ver">Versão 24</div>
   </header>
 
   <main id="main">
@@ -1402,7 +1402,216 @@ function buildPlan(){
     <div><strong>Data:</strong> ${fd(CFG.data)}</div>
     <div><strong>Base:</strong> Resolução DNIT nº 8/2023 · Grupo I</div>
   </div>`;
+  h+=`<button class="btn gold" style="margin-top:18px" onclick="exportXlsx()">
+    <svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+    Exportar Excel
+  </button>`;
   document.getElementById('plan-body').innerHTML=h;
+}
+
+/* ===== Exportar XLSX (sem dependências externas) =====
+   Um XLSX é um ZIP contendo XMLs. Criamos tudo em memória,
+   sem compressão (store), o que é aceito por Excel, Google Sheets e LibreOffice. */
+function exportXlsx(){
+  if(!started){alert('Complete uma vistoria primeiro.');return;}
+  const{ind,total}=calc();
+  const allKms=kmsPorRod.flat();
+  const mr=kmsPorRod.length>1;
+
+  /* ── Sheet 1: Planilha Detalhada ── */
+  const h1=mr?['Rod.','KM','Capina','Roçada','Limpeza','Desobst.','Caiação','Veg.','Dren.','Caiaç.']
+             :['KM','Capina','Roçada','Limpeza','Desobst.','Caiação','Veg.','Dren.','Caiaç.'];
+  const d1=allKms.map(k=>{
+    const vNA=k.capina==='NA'&&k.rocada==='NA',vOk=!vNA&&k.capina!=='NC'&&k.rocada!=='NC';
+    const dNA=k.limpeza==='NA'&&k.desobst==='NA',dOk=!dNA&&k.limpeza!=='NC'&&k.desobst!=='NC';
+    const cNA=k.caiacao==='NA',cOk=!cNA&&k.caiacao!=='NC';
+    const ib=(o,n)=>n?'NA':o?'OK':'NC';
+    const r=mr?[k.rod||'',fk(k.a)+'–'+fk(k.b)]:[fk(k.a)+'–'+fk(k.b)];
+    r.push(k.capina||'—',k.rocada||'—',k.limpeza||'—',k.desobst||'—',k.caiacao||'—');
+    r.push(ib(vOk,vNA),ib(dOk,dNA),ib(cOk,cNA));
+    return r;
+  });
+
+  /* ── Sheet 2: Cálculo do Fator ── */
+  const h2=['Indicador','Peso (%)','Ext. Total','Ext. Atend.','% Atend.','Coeficiente','Fator (A×B)'];
+  const d2=Object.values(ind).map(r=>[
+    r.nome,Math.round(r.peso*100),+r.eT.toFixed(2),+r.eA.toFixed(2),
+    +(r.p*100).toFixed(1),Math.round(r.c*100),+(r.f*100).toFixed(2)
+  ]);
+  d2.push(['FATOR TOTAL','','','','','',+(total*100).toFixed(2)]);
+
+  /* ── Sheet 3: Informações ── */
+  const d3=[
+    ['Rodovia',CFG.rod],['Trecho',CFG.trecho],
+    ['Contrato',CFG.numero||'—'],['Empresa',CFG.empresa||'—'],
+    ['Data da Vistoria',fd(CFG.data)],
+    ['Base Legal','Resolução DNIT nº 8/2023 · Grupo I'],
+    [],['Fator de Pagamento Total',(total*100).toFixed(2)+'%']
+  ];
+
+  /* ── Gera o arquivo XLSX ── */
+  const buf=xlsxBuild([
+    {name:'Planilha Detalhada',hdr:h1,rows:d1},
+    {name:'Cálculo do Fator',hdr:h2,rows:d2},
+    {name:'Informações',hdr:[],rows:d3}
+  ]);
+
+  /* ── Download: Web Share API (iOS) ou <a download> (desktop/Android) ── */
+  const fname='Vistoria_'+(CFG.numero||'SN').replace(/[\/\\ ]/g,'-')+'_'+(CFG.data||'sem-data')+'.xlsx';
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  try{
+    const file=new File([blob],fname,{type:blob.type});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:'Planilha de Vistoria'}).catch(()=>{});
+      return;
+    }
+  }catch(e){}
+  const u=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=u;a.download=fname;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(u),5000);
+}
+
+/* ── Mini XLSX builder: gera o ZIP de XMLs em memória ── */
+function xlsxBuild(sheets){
+  const enc=new TextEncoder();
+  const ex=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const cl=n=>{let s='';n++;while(n>0){s=String.fromCharCode(65+(n-1)%26)+s;n=Math.floor((n-1)/26)}return s};
+
+  /* XML de cada aba */
+  function sheetXml(sh){
+    let x='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      +'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+    let rn=1;
+    if(sh.hdr&&sh.hdr.length){
+      x+='<row r="'+rn+'">';
+      sh.hdr.forEach((h,c)=>{x+='<c r="'+cl(c)+rn+'" t="inlineStr" s="1"><is><t>'+ex(h)+'</t></is></c>';});
+      x+='</row>';rn++;
+    }
+    sh.rows.forEach(row=>{
+      x+='<row r="'+rn+'">';
+      (row||[]).forEach((v,c)=>{
+        if(v==null||v==='')x+='<c r="'+cl(c)+rn+'"/>';
+        else if(typeof v==='number')x+='<c r="'+cl(c)+rn+'"><v>'+v+'</v></c>';
+        else x+='<c r="'+cl(c)+rn+'" t="inlineStr"><is><t>'+ex(v)+'</t></is></c>';
+      });
+      x+='</row>';rn++;
+    });
+    x+='</sheetData></worksheet>';
+    return x;
+  }
+
+  /* Content Types */
+  const ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+    +'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+    +'<Default Extension="xml" ContentType="application/xml"/>'
+    +sheets.map((_,i)=>'<Override PartName="/xl/worksheets/sheet'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join('')
+    +'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+    +'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+    +'</Types>';
+
+  /* Relationships */
+  const rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    +'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+    +'</Relationships>';
+
+  const wbRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    +sheets.map((_,i)=>'<Relationship Id="rId'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+(i+1)+'.xml"/>').join('')
+    +'<Relationship Id="rId'+(sheets.length+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+    +'</Relationships>';
+
+  /* Workbook */
+  const wb='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
+    +sheets.map((s,i)=>'<sheet name="'+ex(s.name)+'" sheetId="'+(i+1)+'" r:id="rId'+(i+1)+'"/>').join('')
+    +'</sheets></workbook>';
+
+  /* Styles: normal (0) e header bold com fundo gold (1) */
+  const sty='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    +'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    +'<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>'
+    +'<font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
+    +'<fills count="3"><fill><patternFill patternType="none"/></fill>'
+    +'<fill><patternFill patternType="gray125"/></fill>'
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FFB7D92D"/></patternFill></fill></fills>'
+    +'<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+    +'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+    +'<cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+    +'<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'
+    +'</cellXfs></styleSheet>';
+
+  /* Monta os arquivos do ZIP */
+  const files=[
+    {n:'[Content_Types].xml',d:enc.encode(ct)},
+    {n:'_rels/.rels',d:enc.encode(rels)},
+    {n:'xl/_rels/workbook.xml.rels',d:enc.encode(wbRels)},
+    {n:'xl/workbook.xml',d:enc.encode(wb)},
+    {n:'xl/styles.xml',d:enc.encode(sty)},
+  ];
+  sheets.forEach((s,i)=>{files.push({n:'xl/worksheets/sheet'+(i+1)+'.xml',d:enc.encode(sheetXml(s))});});
+  return zipStore(files);
+}
+
+/* ── ZIP store (sem compressão) — aceito por todos os leitores XLSX ── */
+function zipStore(files){
+  /* Tabela CRC-32 */
+  const T=(function(){const t=new Uint32Array(256);for(let i=0;i<256;i++){let c=i;for(let j=0;j<8;j++)c=(c&1)?0xEDB88320^(c>>>1):(c>>>1);t[i]=c;}return t})();
+  function crc(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=T[(c^b[i])&0xFF]^(c>>>8);return(c^0xFFFFFFFF)>>>0;}
+
+  const enc=new TextEncoder();
+  const entries=files.map(f=>({nb:enc.encode(f.n),d:f.d,c:crc(f.d)}));
+
+  /* Tamanho total = local headers + data + central dir + EOCD */
+  let sz=22;
+  entries.forEach(e=>{sz+=30+e.nb.length+e.d.length+46+e.nb.length;});
+
+  const buf=new Uint8Array(sz);
+  const v=new DataView(buf.buffer);
+  let p=0;
+
+  /* Local file headers + dados */
+  entries.forEach(e=>{
+    e.off=p;
+    v.setUint32(p,0x04034b50,true);p+=4;  /* signature */
+    v.setUint16(p,20,true);p+=2;           /* version needed */
+    p+=2;p+=2;p+=4;                        /* flags=0, method=store, time+date=0 */
+    v.setUint32(p,e.c,true);p+=4;          /* CRC-32 */
+    v.setUint32(p,e.d.length,true);p+=4;   /* compressed size */
+    v.setUint32(p,e.d.length,true);p+=4;   /* uncompressed size */
+    v.setUint16(p,e.nb.length,true);p+=2;  /* filename length */
+    p+=2;                                   /* extra field length=0 */
+    buf.set(e.nb,p);p+=e.nb.length;
+    buf.set(e.d,p);p+=e.d.length;
+  });
+
+  /* Central directory */
+  const cdOff=p;
+  entries.forEach(e=>{
+    v.setUint32(p,0x02014b50,true);p+=4;
+    v.setUint16(p,20,true);p+=2;v.setUint16(p,20,true);p+=2;
+    p+=2;p+=2;p+=4;                        /* flags, method, time+date */
+    v.setUint32(p,e.c,true);p+=4;
+    v.setUint32(p,e.d.length,true);p+=4;
+    v.setUint32(p,e.d.length,true);p+=4;
+    v.setUint16(p,e.nb.length,true);p+=2;
+    p+=2;p+=2;p+=2;p+=2;p+=4;             /* extra, comment, disk, attrs */
+    v.setUint32(p,e.off,true);p+=4;
+    buf.set(e.nb,p);p+=e.nb.length;
+  });
+
+  /* End of Central Directory */
+  const cdSz=p-cdOff;
+  v.setUint32(p,0x06054b50,true);p+=4;
+  p+=4;                                    /* disk numbers=0 */
+  v.setUint16(p,entries.length,true);p+=2;
+  v.setUint16(p,entries.length,true);p+=2;
+  v.setUint32(p,cdSz,true);p+=4;
+  v.setUint32(p,cdOff,true);p+=4;
+  p+=2;                                    /* comment length=0 */
+  return buf;
 }
 
 /* ===== Fechar modal ao clicar no fundo ===== */
