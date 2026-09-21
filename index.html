@@ -226,6 +226,13 @@
   .ct-act-btn:active{border-color:var(--gold);color:var(--gold)}
   .ct-act-btn.del{border-color:rgba(239,83,80,.2);color:rgba(239,83,80,.6)}
   .ct-act-btn.del:active{border-color:var(--nc);color:var(--nc)}
+  .ct-act-btn.share{border-color:rgba(91,168,255,.25);color:rgba(91,168,255,.7)}
+  .ct-act-btn.share:active{border-color:#5ba8ff;color:#5ba8ff}
+  .ct-import-btn{background:none;border:1px solid rgba(0,0,0,.1);border-radius:999px;
+    padding:6px 14px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--mutLight);cursor:pointer;transition:all .12s}
+  .ct-import-btn:active{border-color:var(--gold);color:#1c2333}
+  #ct-import-file{display:none}
 
   /* ═══════════════════════════════════════════════
      VISTORIA — TABELA COM BOTÕES C / NC
@@ -474,7 +481,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 36</div>
+    <div class="ver">Versão 37</div>
   </header>
 
   <main id="main">
@@ -485,7 +492,11 @@
           <div class="ct-title">Meus Contratos</div>
           <div class="ct-count" id="ct-count"></div>
         </div>
-        <button class="ct-add-btn" onclick="showModal()" title="Novo contrato">+</button>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="ct-import-btn" onclick="document.getElementById('ct-import-file').click()">Importar</button>
+          <input type="file" id="ct-import-file" accept=".json" onchange="importarContrato(this)">
+          <button class="ct-add-btn" onclick="showModal()" title="Novo contrato">+</button>
+        </div>
       </div>
       <div id="ct-list"></div>
     </div>
@@ -707,6 +718,7 @@ function renderContratos(){
       <div class="ct-trecho">${trechoHtml}</div>
       ${lastInfo}
       <div class="ct-actions" onclick="event.stopPropagation()">
+        <button class="ct-act-btn share" onclick="exportarContrato('${ct.id}')">Compartilhar</button>
         <button class="ct-act-btn" onclick="editarContrato('${ct.id}')">Editar</button>
         <button class="ct-act-btn del" onclick="excluirContrato('${ct.id}')">Excluir</button>
       </div>
@@ -991,6 +1003,73 @@ function excluirContrato(id){
   renderContratos();
 }
 
+/* ===== Compartilhar / Importar contrato ===== */
+function exportarContrato(id){
+  const ct=getContratos().find(c=>c.id===id);
+  if(!ct)return;
+  const hist=getHistorico(id);
+  const payload={_app:'pato-desempenho',_v:1,contrato:ct,historico:hist};
+  const json=JSON.stringify(payload,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const nome='PATO_'+(ct.numero||'contrato').replace(/[\/\\:*?"<>|]/g,'_')+'.json';
+
+  /* iOS/Android: Web Share API com arquivo */
+  if(navigator.canShare){
+    const file=new File([blob],nome,{type:'application/json'});
+    if(navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:'Contrato '+ct.numero}).catch(()=>{});
+      return;
+    }
+  }
+  /* Fallback: download direto */
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=nome;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+
+function importarContrato(input){
+  const file=input.files[0];
+  if(!file)return;
+  input.value='';
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const d=JSON.parse(reader.result);
+      if(d._app!=='pato-desempenho'||!d.contrato)
+        return alert('Arquivo inválido. Use um arquivo exportado pelo PATO Desempenho.');
+      const ct=d.contrato;
+      const hist=d.historico||[];
+      const list=getContratos();
+      /* Verifica se já existe (mesmo id ou mesmo número+empresa) */
+      const existe=list.find(c=>c.id===ct.id||(c.numero===ct.numero&&c.empresa===ct.empresa));
+      if(existe){
+        if(!confirm('Contrato "'+ct.numero+'" já existe. Deseja substituir os dados?'))return;
+        /* Remove o existente para substituir */
+        const idx=list.indexOf(existe);
+        list.splice(idx,1);
+        localStorage.removeItem('vh-'+existe.id);
+      }
+      /* Gera novo id para evitar conflito de timestamps */
+      const novoId='ct-'+Date.now();
+      const idOriginal=ct.id;
+      ct.id=novoId;
+      list.push(ct);
+      setContratos(list);
+      /* Importa histórico */
+      if(hist.length){
+        localStorage.setItem('vh-'+novoId,JSON.stringify(hist));
+      }
+      renderContratos();
+      alert('Contrato "'+ct.numero+'" importado com sucesso!'+(hist.length?' ('+hist.length+' vistoria'+(hist.length>1?'s':'')+')':''));
+    }catch(e){
+      alert('Erro ao ler arquivo: '+e.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
 /* ===== Abrir detalhe do contrato (histórico) ===== */
 function abrirDetalhe(id){
   detalheCtId=id;
@@ -1022,9 +1101,12 @@ function renderDetalhe(){
     <div class="det-trecho">${trechoHtml}</div>
   </div>`;
 
-  /* Botão iniciar nova vistoria */
+  /* Botões de ação */
   h+=`<button class="btn gold det-nova-btn" onclick="abrirContrato('${id}')">
     Iniciar Nova Vistoria
+  </button>`;
+  h+=`<button class="btn ghost" style="margin-top:8px" onclick="exportarContrato('${id}')">
+    Compartilhar Contrato
   </button>`;
 
   /* Seção de histórico */
