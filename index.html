@@ -481,7 +481,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 37</div>
+    <div class="ver">Versão 38</div>
   </header>
 
   <main id="main">
@@ -1004,31 +1004,98 @@ function excluirContrato(id){
 }
 
 /* ===== Compartilhar / Importar contrato ===== */
-function exportarContrato(id){
+
+/* Comprime JSON → base64url para caber num link */
+async function comprimirPayload(json){
+  try{
+    const buf=new TextEncoder().encode(json);
+    const cs=new CompressionStream('deflate-raw');
+    const w=cs.writable.getWriter();
+    w.write(buf);w.close();
+    const chunks=[];const r=cs.readable.getReader();
+    while(true){const{done,value}=await r.read();if(done)break;chunks.push(value);}
+    const out=new Uint8Array(chunks.reduce((a,c)=>a+c.length,0));
+    let off=0;chunks.forEach(c=>{out.set(c,off);off+=c.length;});
+    /* base64url (sem padding) */
+    let b64=btoa(String.fromCharCode(...out));
+    return b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }catch(e){
+    /* Fallback sem compressão: base64url do JSON cru */
+    let b64=btoa(unescape(encodeURIComponent(json)));
+    return 'R'+b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+}
+
+/* Descomprime base64url → JSON */
+async function descomprimirPayload(b64url){
+  /* 'R' no início = raw (sem compressão), fallback */
+  const raw=b64url.startsWith('R');
+  const b64str=raw?b64url.slice(1):b64url;
+  const b64=b64str.replace(/-/g,'+').replace(/_/g,'/');
+  const bin=atob(b64);
+  if(raw)return decodeURIComponent(escape(bin));
+  const buf=Uint8Array.from(bin,c=>c.charCodeAt(0));
+  const ds=new DecompressionStream('deflate-raw');
+  const w=ds.writable.getWriter();
+  w.write(buf);w.close();
+  const chunks=[];const r=ds.readable.getReader();
+  while(true){const{done,value}=await r.read();if(done)break;chunks.push(value);}
+  const out=new Uint8Array(chunks.reduce((a,c)=>a+c.length,0));
+  let off=0;chunks.forEach(c=>{out.set(c,off);off+=c.length;});
+  return new TextDecoder().decode(out);
+}
+
+async function exportarContrato(id){
   const ct=getContratos().find(c=>c.id===id);
   if(!ct)return;
   const hist=getHistorico(id);
   const payload={_app:'pato-desempenho',_v:1,contrato:ct,historico:hist};
-  const json=JSON.stringify(payload,null,2);
-  const blob=new Blob([json],{type:'application/json'});
-  const nome='PATO_'+(ct.numero||'contrato').replace(/[\/\\:*?"<>|]/g,'_')+'.json';
+  const json=JSON.stringify(payload);
+  const encoded=await comprimirPayload(json);
+  const url=location.origin+location.pathname+'#i='+encoded;
 
-  /* iOS/Android: Web Share API com arquivo */
-  if(navigator.canShare){
-    const file=new File([blob],nome,{type:'application/json'});
-    if(navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:'Contrato '+ct.numero}).catch(()=>{});
-      return;
+  /* Compartilha o link */
+  if(navigator.share){
+    navigator.share({
+      title:'Contrato '+(ct.numero||''),
+      text:'Abra este link no PATO Desempenho:',
+      url:url
+    }).catch(()=>{});
+  }else{
+    /* Desktop: copia para clipboard */
+    try{
+      await navigator.clipboard.writeText(url);
+      alert('Link copiado! Cole no WhatsApp ou envie para quem quiser.');
+    }catch(e){
+      prompt('Copie o link abaixo:',url);
     }
   }
-  /* Fallback: download direto */
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=nome;
-  a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
 }
 
+function receberContrato(d){
+  const ct=d.contrato;
+  const hist=d.historico||[];
+  const list=getContratos();
+  const existe=list.find(c=>c.id===ct.id||(c.numero===ct.numero&&c.empresa===ct.empresa));
+  if(existe){
+    if(!confirm('Contrato "'+ct.numero+'" já existe.\nDeseja substituir os dados?'))return;
+    const idx=list.indexOf(existe);
+    list.splice(idx,1);
+    localStorage.removeItem('vh-'+existe.id);
+  }
+  const novoId='ct-'+Date.now();
+  ct.id=novoId;
+  list.push(ct);
+  setContratos(list);
+  if(hist.length){
+    localStorage.setItem('vh-'+novoId,JSON.stringify(hist));
+  }
+  renderContratos();
+  alert('Contrato "'+ct.numero+'" importado com sucesso!'
+    +(hist.length?' ('+hist.length+' vistoria'+(hist.length>1?'s':'')+')':''));
+}
+
+/* Importar via arquivo (fallback) */
 function importarContrato(input){
   const file=input.files[0];
   if(!file)return;
@@ -1038,36 +1105,34 @@ function importarContrato(input){
     try{
       const d=JSON.parse(reader.result);
       if(d._app!=='pato-desempenho'||!d.contrato)
-        return alert('Arquivo inválido. Use um arquivo exportado pelo PATO Desempenho.');
-      const ct=d.contrato;
-      const hist=d.historico||[];
-      const list=getContratos();
-      /* Verifica se já existe (mesmo id ou mesmo número+empresa) */
-      const existe=list.find(c=>c.id===ct.id||(c.numero===ct.numero&&c.empresa===ct.empresa));
-      if(existe){
-        if(!confirm('Contrato "'+ct.numero+'" já existe. Deseja substituir os dados?'))return;
-        /* Remove o existente para substituir */
-        const idx=list.indexOf(existe);
-        list.splice(idx,1);
-        localStorage.removeItem('vh-'+existe.id);
-      }
-      /* Gera novo id para evitar conflito de timestamps */
-      const novoId='ct-'+Date.now();
-      const idOriginal=ct.id;
-      ct.id=novoId;
-      list.push(ct);
-      setContratos(list);
-      /* Importa histórico */
-      if(hist.length){
-        localStorage.setItem('vh-'+novoId,JSON.stringify(hist));
-      }
-      renderContratos();
-      alert('Contrato "'+ct.numero+'" importado com sucesso!'+(hist.length?' ('+hist.length+' vistoria'+(hist.length>1?'s':'')+')':''));
+        return alert('Arquivo inválido.');
+      receberContrato(d);
     }catch(e){
       alert('Erro ao ler arquivo: '+e.message);
     }
   };
   reader.readAsText(file);
+}
+
+/* Checa se o app foi aberto via link de compartilhamento (#i=...) */
+async function checarLinkImport(){
+  const h=location.hash;
+  if(!h.startsWith('#i='))return;
+  /* Limpa o hash para não reimportar ao recarregar */
+  history.replaceState(null,'',location.pathname);
+  try{
+    const json=await descomprimirPayload(h.slice(3));
+    const d=JSON.parse(json);
+    if(d._app!=='pato-desempenho'||!d.contrato)return;
+    /* Pequeno delay para o app terminar de renderizar */
+    setTimeout(()=>{
+      if(confirm('Recebeu o contrato "'+(d.contrato.numero||'S/N')+'" de '+(d.contrato.empresa||'—')+'.\n\nDeseja importar?')){
+        receberContrato(d);
+      }
+    },400);
+  }catch(e){
+    console.warn('Link de importação inválido',e);
+  }
 }
 
 /* ===== Abrir detalhe do contrato (histórico) ===== */
@@ -2061,7 +2126,8 @@ document.getElementById('modal-contrato').addEventListener('click',function(e){
 
 /* ===== Init ===== */
 renderContratos();
-loadSnvIndex(); /* pré-carrega índice de rodovias para o modal */
+loadSnvIndex();
+checarLinkImport();
 
 /* ===== Service Worker ===== */
 if('serviceWorker' in navigator){
