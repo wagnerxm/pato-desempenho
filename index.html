@@ -252,6 +252,23 @@
   .v-info-bar .v-rod{font-weight:800;color:#1c2333;font-size:13px}
   .v-info-bar .v-prog{font-variant-numeric:tabular-nums;font-weight:600}
 
+  /* Barra de GPS — mostra KM atual do usuário na vistoria */
+  .v-gps-bar{flex-shrink:0;padding:5px 14px;display:flex;align-items:center;gap:8px;
+    background:rgba(18,18,18,.92);border-bottom:1px solid rgba(183,217,45,.18);
+    font-size:11px;color:#fff;font-weight:600;font-variant-numeric:tabular-nums;
+    transition:opacity .3s}
+  .v-gps-bar .gps-icon{width:16px;height:16px;flex-shrink:0}
+  .v-gps-bar .gps-km{font-size:14px;font-weight:800;color:var(--gold)}
+  .v-gps-bar .gps-dist{font-size:9px;color:var(--mut);font-weight:500}
+  .v-gps-bar .gps-msg{font-size:10px;color:var(--mut);font-weight:500}
+  .v-gps-bar .gps-pulse{width:8px;height:8px;border-radius:50%;background:var(--gold);
+    animation:gpsPulse 1.5s ease-in-out infinite}
+  @keyframes gpsPulse{0%,100%{opacity:.4;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
+  /* Linha da tabela destacada como "você está aqui" */
+  tr.gps-here td:first-child{position:relative}
+  tr.gps-here td:first-child::before{content:'';position:absolute;left:0;top:0;
+    bottom:0;width:3px;background:var(--gold)}
+
   .v-hist-banner{flex-shrink:0;padding:6px 14px;
     background:rgba(183,217,45,.10);border-bottom:1px solid rgba(183,217,45,.18);
     font-size:10px;color:#6a7d1a;display:flex;align-items:center;gap:6px;font-weight:600}
@@ -461,7 +478,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 24</div>
+    <div class="ver">Versão 25</div>
   </header>
 
   <main id="main">
@@ -483,6 +500,10 @@
       <div class="v-info-bar">
         <span class="v-rod" id="v-rod"></span>
         <span class="v-prog" id="v-prog-txt"></span>
+      </div>
+      <div id="v-gps-bar" class="v-gps-bar" style="display:none">
+        <svg class="gps-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 017 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 017-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+        <span id="gps-label">Localizando GPS…</span>
       </div>
       <div id="v-rod-tabs-wrap"></div>
       <div id="v-banner-wrap"></div>
@@ -1148,6 +1169,8 @@ function go(id){
     b.classList.toggle('on',b.dataset.s===dockId));
   const fixed=id==='scr-vistoria';
   document.getElementById('main').classList.toggle('fixed-mode',fixed);
+  /* GPS: liga ao entrar na vistoria, desliga ao sair */
+  if(id==='scr-vistoria')startVistoriaGps(); else stopVistoriaGps();
   if(id==='scr-contratos')renderContratos();
   if(id==='scr-detalhe'&&detalheCtId)renderDetalhe();
   if(id==='scr-resultado'&&started)buildRes();
@@ -1612,6 +1635,147 @@ function zipStore(files){
   v.setUint32(p,cdOff,true);p+=4;
   p+=2;                                    /* comment length=0 */
   return buf;
+}
+
+/* ===== GPS + KM do KM Check (lê rodovias do IndexedDB compartilhado) ===== */
+/* Ambos os apps vivem em wagnerxm.github.io → mesmo origin → compartilham IndexedDB */
+const GPS_R=6371008.8, GPS_D2R=Math.PI/180;
+let gpsWatchId=null, gpsBases=[], gpsReady=false;
+
+/* Abre o IndexedDB do KM Check e carrega as rodovias */
+function loadKmCheckBases(){
+  return new Promise((resolve)=>{
+    try{
+      const req=indexedDB.open('kmcheck',2);
+      req.onupgradeneeded=()=>{
+        /* Se o banco não existia, o KM Check nunca foi usado neste dispositivo.
+           Criamos as stores para não dar erro, mas ficarão vazias. */
+        const db=req.result;
+        if(!db.objectStoreNames.contains('bases'))db.createObjectStore('bases',{keyPath:'id'});
+        if(!db.objectStoreNames.contains('photos'))db.createObjectStore('photos',{keyPath:'id',autoIncrement:true});
+      };
+      req.onsuccess=()=>{
+        const db=req.result;
+        const tx=db.transaction('bases','readonly');
+        const st=tx.objectStore('bases');
+        const g=st.getAll();
+        g.onsuccess=()=>{resolve(g.result||[]);db.close();};
+        g.onerror=()=>{resolve([]);db.close();};
+      };
+      req.onerror=()=>resolve([]);
+    }catch(e){resolve([]);}
+  });
+}
+
+/* Interpola KM: projeta (lat,lon) no segmento mais próximo de todas as rodovias carregadas */
+function gpsInterpolKm(lat,lon){
+  let best=null;
+  for(const b of gpsBases){
+    const cos=Math.cos(lat*GPS_D2R);
+    for(let i=0;i<b.lat.length-1;i++){
+      const ax=b.lon[i],ay=b.lat[i],bx=b.lon[i+1],by=b.lat[i+1];
+      const dx=(bx-ax)*cos,dy=by-ay;
+      const ex=(lon-ax)*cos,ey=lat-ay;
+      const L2=dx*dx+dy*dy;
+      if(L2===0)continue;
+      let t=(ex*dx+ey*dy)/L2;
+      t=t<0?0:(t>1?1:t);
+      const fx=ex-t*dx,fy=ey-t*dy;
+      const d2=fx*fx+fy*fy;
+      if(!best||d2<best.d2)best={d2,t,i,b};
+    }
+  }
+  if(!best)return null;
+  const{t,i,b}=best;
+  const km=b.km[i]+t*(b.km[i+1]-b.km[i]);
+  const dist=Math.sqrt(best.d2)*GPS_D2R*GPS_R;
+  return{km,dist,br:b.br,uf:b.uf};
+}
+
+/* Inicia o GPS ao entrar na vistoria */
+function startVistoriaGps(){
+  if(gpsWatchId!=null||!navigator.geolocation)return;
+  const bar=document.getElementById('v-gps-bar');
+  if(bar)bar.style.display='flex';
+  const label=document.getElementById('gps-label');
+  if(label)label.innerHTML='<span class="gps-pulse"></span> Localizando GPS…';
+
+  /* Carrega rodovias do KM Check se ainda não fez */
+  if(!gpsBases.length){
+    loadKmCheckBases().then(bases=>{
+      gpsBases=bases;
+      gpsReady=gpsBases.length>0;
+      if(!gpsReady&&label)label.innerHTML='<span class="gps-msg">Nenhuma rodovia no KM Check</span>';
+    });
+  }else{gpsReady=gpsBases.length>0;}
+
+  gpsWatchId=navigator.geolocation.watchPosition(
+    p=>{
+      const lat=p.coords.latitude,lon=p.coords.longitude;
+      if(!gpsReady){updateGpsBar(null,lat,lon);return;}
+      const fix=gpsInterpolKm(lat,lon);
+      updateGpsBar(fix,lat,lon);
+      highlightGpsRow(fix);
+    },
+    err=>{
+      const label2=document.getElementById('gps-label');
+      if(label2)label2.innerHTML='<span class="gps-msg">GPS indisponível</span>';
+    },
+    {enableHighAccuracy:true,maximumAge:2000,timeout:20000}
+  );
+}
+
+/* Atualiza a barra visual do GPS */
+function updateGpsBar(fix,lat,lon){
+  const label=document.getElementById('gps-label');
+  if(!label)return;
+  if(!fix||fix.dist>1000){
+    label.innerHTML='<span class="gps-pulse"></span> <span class="gps-msg">Fora do trecho ('+
+      lat.toFixed(5)+', '+lon.toFixed(5)+')</span>';
+    return;
+  }
+  const fmtKm=fix.km.toFixed(3).replace('.',',');
+  const fmtDist=fix.dist<10?fix.dist.toFixed(0)+'m':fix.dist<1000?(fix.dist/1000).toFixed(1)+'km':'';
+  label.innerHTML='<span class="gps-pulse"></span> '+
+    '<span class="gps-km">KM '+fmtKm+'</span> '+
+    fix.br+'/'+fix.uf+
+    (fmtDist?' <span class="gps-dist">('+fmtDist+' do eixo)</span>':'');
+}
+
+/* Destaca a linha da tabela correspondente ao KM GPS */
+function highlightGpsRow(fix){
+  /* Remove destaque anterior */
+  document.querySelectorAll('tr.gps-here').forEach(r=>r.classList.remove('gps-here'));
+  if(!fix||fix.dist>500||!kms.length)return;
+
+  /* Verifica se o fix é na rodovia ativa */
+  const rodLabel=kms[0]?.rod;
+  const fixLabel=fix.br+(fix.uf?'/'+fix.uf:'');
+  if(rodLabel&&!rodLabel.includes(fix.br))return;
+
+  /* Encontra o KM da tabela que contém o KM do GPS */
+  for(let i=0;i<kms.length;i++){
+    if(fix.km>=kms[i].a&&fix.km<=kms[i].b){
+      const rows=document.querySelectorAll('#v-tbody tr');
+      if(rows[i]){
+        rows[i].classList.add('gps-here');
+        /* Scroll suave para a linha */
+        rows[i].scrollIntoView({behavior:'smooth',block:'nearest'});
+      }
+      break;
+    }
+  }
+}
+
+/* Para o GPS ao sair da vistoria */
+function stopVistoriaGps(){
+  if(gpsWatchId!=null){
+    navigator.geolocation.clearWatch(gpsWatchId);
+    gpsWatchId=null;
+  }
+  const bar=document.getElementById('v-gps-bar');
+  if(bar)bar.style.display='none';
+  document.querySelectorAll('tr.gps-here').forEach(r=>r.classList.remove('gps-here'));
 }
 
 /* ===== Fechar modal ao clicar no fundo ===== */
