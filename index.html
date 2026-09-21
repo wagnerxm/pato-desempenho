@@ -253,14 +253,11 @@
   .v-info-bar .v-prog{font-variant-numeric:tabular-nums;font-weight:600}
 
   /* Barra de GPS — mostra KM atual do usuário na vistoria */
-  .v-gps-bar{flex-shrink:0;padding:10px 16px;display:flex;align-items:center;gap:10px;
-    background:rgba(18,18,18,.92);border-bottom:1px solid rgba(183,217,45,.18);
+  .v-gps-bar{flex-shrink:0;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:10px;
+    background:rgba(18,18,18,.92);border-bottom:1px solid rgba(91,168,255,.18);
     font-size:13px;color:#fff;font-weight:600;font-variant-numeric:tabular-nums;
     transition:opacity .3s}
-  .v-gps-bar .gps-icon{width:20px;height:20px;flex-shrink:0}
-  .v-gps-bar .gps-km{font-size:20px;font-weight:800;color:#5ba8ff}
-  .v-gps-bar .gps-rod{font-size:14px;font-weight:700;color:#fff}
-  .v-gps-bar .gps-dist{font-size:10px;color:var(--mut);font-weight:500}
+  .v-gps-bar .gps-km{font-size:22px;font-weight:800;color:#5ba8ff}
   .v-gps-bar .gps-msg{font-size:12px;color:var(--mut);font-weight:500}
   .v-gps-bar .gps-pulse{width:8px;height:8px;border-radius:50%;background:var(--gold);
     animation:gpsPulse 1.5s ease-in-out infinite}
@@ -478,7 +475,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 33</div>
+    <div class="ver">Versão 34</div>
   </header>
 
   <main id="main">
@@ -502,8 +499,7 @@
         <span class="v-prog" id="v-prog-txt"></span>
       </div>
       <div id="v-gps-bar" class="v-gps-bar" style="display:none">
-        <svg class="gps-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 017 7c0 5.25-7 13-7 13S5 14.25 5 9a7 7 0 017-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
-        <span id="gps-label">Localizando GPS…</span>
+        <span id="gps-label"><span class="gps-pulse"></span> Localizando GPS…</span>
       </div>
       <div id="v-rod-tabs-wrap"></div>
       <div id="v-banner-wrap"></div>
@@ -1938,9 +1934,7 @@ function updateGpsBar(fix,lat,lon){
   const fmtKm=fix.km.toFixed(3).replace('.',',');
   const fmtDist=fix.dist<10?fix.dist.toFixed(0)+'m':fix.dist<1000?(fix.dist/1000).toFixed(1)+'km':'';
   label.innerHTML='<span class="gps-pulse"></span> '+
-    '<span class="gps-km">KM '+fmtKm+'</span> '+
-    '<span class="gps-rod">'+fix.br+'/'+fix.uf+'</span>'+
-    (fmtDist?' <span class="gps-dist">('+fmtDist+' do eixo)</span>':'');
+    '<span class="gps-km">KM '+fmtKm+'</span>';
 }
 
 /* Destaca a linha da tabela correspondente ao KM GPS */
