@@ -481,7 +481,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 38</div>
+    <div class="ver">Versão 39</div>
   </header>
 
   <main id="main">
@@ -1005,35 +1005,64 @@ function excluirContrato(id){
 
 /* ===== Compartilhar / Importar contrato ===== */
 
-/* Comprime JSON → base64url para caber num link */
-async function comprimirPayload(json){
-  try{
-    const buf=new TextEncoder().encode(json);
-    const cs=new CompressionStream('deflate-raw');
-    const w=cs.writable.getWriter();
-    w.write(buf);w.close();
-    const chunks=[];const r=cs.readable.getReader();
-    while(true){const{done,value}=await r.read();if(done)break;chunks.push(value);}
-    const out=new Uint8Array(chunks.reduce((a,c)=>a+c.length,0));
-    let off=0;chunks.forEach(c=>{out.set(c,off);off+=c.length;});
-    /* base64url (sem padding) */
-    let b64=btoa(String.fromCharCode(...out));
-    return b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  }catch(e){
-    /* Fallback sem compressão: base64url do JSON cru */
-    let b64=btoa(unescape(encodeURIComponent(json)));
-    return 'R'+b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  }
+/* Compactação: converte payload em JSON mínimo com chaves curtas.
+   Avaliações viram string de 1 char por item: C/N/A/- (null) */
+const _EV={'C':'C','NC':'N','NA':'A'};
+const _EVR={'C':'C','N':'NC','A':'NA'};
+function compactarPayload(ct,hist){
+  const c={n:ct.numero,e:ct.empresa,t:ct.trecho,
+    r:(ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}]).map(
+      r=>({u:r.uf,b:r.rodovia,i:r.ki,f:r.kf}))};
+  const h=hist.map(v=>({
+    d:v.date,f:v.fiscal,t:v.total,
+    k:v.data.map(k=>k.a+'|'+k.b+'|'+(_EV[k.capina]||'-')+(_EV[k.rocada]||'-')
+      +(_EV[k.limpeza]||'-')+(_EV[k.desobst]||'-')+(_EV[k.caiacao]||'-')).join(',')
+  }));
+  return JSON.stringify({p:1,c,h});
 }
 
-/* Descomprime base64url → JSON */
-async function descomprimirPayload(b64url){
-  /* 'R' no início = raw (sem compressão), fallback */
-  const raw=b64url.startsWith('R');
-  const b64str=raw?b64url.slice(1):b64url;
-  const b64=b64str.replace(/-/g,'+').replace(/_/g,'/');
+function expandirPayload(s){
+  const d=JSON.parse(s);
+  if(!d.c)return null;
+  const ct={
+    id:'ct-'+Date.now(),numero:d.c.n,empresa:d.c.e,trecho:d.c.t,
+    uf:d.c.r[0]?.u,rodovia:d.c.r[0]?.b,ki:d.c.r[0]?.i,kf:d.c.r[0]?.f,
+    rodovias:d.c.r.map(r=>({uf:r.u,rodovia:r.b,ki:r.i,kf:r.f})),
+    criadoEm:Date.now()
+  };
+  const rodLabels=ct.rodovias.map(r=>r.rodovia+(r.uf?'/'+r.uf:''));
+  const hist=(d.h||[]).map(v=>{
+    const data=v.k?v.k.split(',').map(s=>{
+      const p=s.split('|');
+      return{a:+p[0],b:+p[1],rod:rodLabels[0]||'',
+        capina:_EVR[p[2][0]]||null,rocada:_EVR[p[2][1]]||null,
+        limpeza:_EVR[p[2][2]]||null,desobst:_EVR[p[2][3]]||null,
+        caiacao:_EVR[p[2][4]]||null};
+    }):[];
+    return{data,date:v.d,fiscal:v.f,total:v.t,
+      rod:rodLabels.join(', '),trecho:ct.trecho,
+      ki:ct.ki,kf:ct.kf,numero:ct.numero,empresa:ct.empresa,ts:Date.now()};
+  });
+  return{contrato:ct,historico:hist};
+}
+
+/* Comprime string → base64url via deflate */
+async function deflateB64(str){
+  const buf=new TextEncoder().encode(str);
+  const cs=new CompressionStream('deflate-raw');
+  const w=cs.writable.getWriter();
+  w.write(buf);w.close();
+  const chunks=[];const r=cs.readable.getReader();
+  while(true){const{done,value}=await r.read();if(done)break;chunks.push(value);}
+  const out=new Uint8Array(chunks.reduce((a,c)=>a+c.length,0));
+  let off=0;chunks.forEach(c=>{out.set(c,off);off+=c.length;});
+  let b64=btoa(String.fromCharCode(...out));
+  return b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+async function inflateB64(b64url){
+  const b64=b64url.replace(/-/g,'+').replace(/_/g,'/');
   const bin=atob(b64);
-  if(raw)return decodeURIComponent(escape(bin));
   const buf=Uint8Array.from(bin,c=>c.charCodeAt(0));
   const ds=new DecompressionStream('deflate-raw');
   const w=ds.writable.getWriter();
@@ -1049,26 +1078,39 @@ async function exportarContrato(id){
   const ct=getContratos().find(c=>c.id===id);
   if(!ct)return;
   const hist=getHistorico(id);
-  const payload={_app:'pato-desempenho',_v:1,contrato:ct,historico:hist};
-  const json=JSON.stringify(payload);
-  const encoded=await comprimirPayload(json);
-  const url=location.origin+location.pathname+'#i='+encoded;
+  const compact=compactarPayload(ct,hist);
+  let encoded;
+  try{encoded=await deflateB64(compact);}catch(e){
+    encoded=btoa(unescape(encodeURIComponent(compact)))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  const base=location.origin+location.pathname;
+  const url=base+'#i='+encoded;
 
-  /* Compartilha o link */
-  if(navigator.share){
-    navigator.share({
-      title:'Contrato '+(ct.numero||''),
-      text:'Abra este link no PATO Desempenho:',
-      url:url
-    }).catch(()=>{});
-  }else{
-    /* Desktop: copia para clipboard */
-    try{
-      await navigator.clipboard.writeText(url);
-      alert('Link copiado! Cole no WhatsApp ou envie para quem quiser.');
-    }catch(e){
-      prompt('Copie o link abaixo:',url);
+  /* Se o link ficar muito grande, compartilha como arquivo */
+  if(url.length>8000){
+    const payload={_app:'pato-desempenho',_v:1,contrato:ct,historico:hist};
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const nome='PATO_'+(ct.numero||'contrato').replace(/[\/\\:*?"<>|]/g,'_')+'.json';
+    if(navigator.canShare){
+      const file=new File([blob],nome,{type:'application/json'});
+      if(navigator.canShare({files:[file]})){
+        navigator.share({files:[file],title:'Contrato '+ct.numero}).catch(()=>{});
+        return;
+      }
     }
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download=nome;a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+    return;
+  }
+
+  if(navigator.share){
+    navigator.share({title:'PATO — '+(ct.numero||''),url}).catch(()=>{});
+  }else{
+    try{await navigator.clipboard.writeText(url);
+      alert('Link copiado!');
+    }catch(e){prompt('Copie o link:',url);}
   }
 }
 
@@ -1079,19 +1121,15 @@ function receberContrato(d){
   const existe=list.find(c=>c.id===ct.id||(c.numero===ct.numero&&c.empresa===ct.empresa));
   if(existe){
     if(!confirm('Contrato "'+ct.numero+'" já existe.\nDeseja substituir os dados?'))return;
-    const idx=list.indexOf(existe);
-    list.splice(idx,1);
+    list.splice(list.indexOf(existe),1);
     localStorage.removeItem('vh-'+existe.id);
   }
-  const novoId='ct-'+Date.now();
-  ct.id=novoId;
+  ct.id='ct-'+Date.now();
   list.push(ct);
   setContratos(list);
-  if(hist.length){
-    localStorage.setItem('vh-'+novoId,JSON.stringify(hist));
-  }
+  if(hist.length) localStorage.setItem('vh-'+ct.id,JSON.stringify(hist));
   renderContratos();
-  alert('Contrato "'+ct.numero+'" importado com sucesso!'
+  alert('Contrato "'+(ct.numero||'')+'" importado!'
     +(hist.length?' ('+hist.length+' vistoria'+(hist.length>1?'s':'')+')':''));
 }
 
@@ -1107,33 +1145,39 @@ function importarContrato(input){
       if(d._app!=='pato-desempenho'||!d.contrato)
         return alert('Arquivo inválido.');
       receberContrato(d);
-    }catch(e){
-      alert('Erro ao ler arquivo: '+e.message);
-    }
+    }catch(e){alert('Erro ao ler: '+e.message);}
   };
   reader.readAsText(file);
 }
 
-/* Checa se o app foi aberto via link de compartilhamento (#i=...) */
-async function checarLinkImport(){
+/* Processa link de importação #i=... */
+async function processarHashImport(){
   const h=location.hash;
   if(!h.startsWith('#i='))return;
-  /* Limpa o hash para não reimportar ao recarregar */
   history.replaceState(null,'',location.pathname);
   try{
-    const json=await descomprimirPayload(h.slice(3));
-    const d=JSON.parse(json);
-    if(d._app!=='pato-desempenho'||!d.contrato)return;
-    /* Pequeno delay para o app terminar de renderizar */
+    const json=await inflateB64(h.slice(3));
+    const d=expandirPayload(json);
+    if(!d)return;
     setTimeout(()=>{
-      if(confirm('Recebeu o contrato "'+(d.contrato.numero||'S/N')+'" de '+(d.contrato.empresa||'—')+'.\n\nDeseja importar?')){
+      if(confirm('Recebeu o contrato "'+(d.contrato.numero||'S/N')+'" de '
+          +(d.contrato.empresa||'—')+'.\n\nDeseja importar?')){
         receberContrato(d);
       }
-    },400);
+    },300);
   }catch(e){
-    console.warn('Link de importação inválido',e);
+    /* Tenta fallback sem compressão */
+    try{
+      const raw=decodeURIComponent(escape(atob(h.slice(3).replace(/-/g,'+').replace(/_/g,'/'))));
+      const d=expandirPayload(raw);
+      if(d){setTimeout(()=>{
+        if(confirm('Importar contrato "'+(d.contrato.numero||'')+'"?'))receberContrato(d);
+      },300);}
+    }catch(e2){console.warn('Link inválido',e2);}
   }
 }
+/* Detecta tanto no boot quanto se a PWA receber o link depois */
+window.addEventListener('hashchange',()=>processarHashImport());
 
 /* ===== Abrir detalhe do contrato (histórico) ===== */
 function abrirDetalhe(id){
@@ -2127,7 +2171,7 @@ document.getElementById('modal-contrato').addEventListener('click',function(e){
 /* ===== Init ===== */
 renderContratos();
 loadSnvIndex();
-checarLinkImport();
+processarHashImport();
 
 /* ===== Service Worker ===== */
 if('serviceWorker' in navigator){
