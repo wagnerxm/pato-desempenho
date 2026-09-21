@@ -478,7 +478,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 25</div>
+    <div class="ver">Versão 26</div>
   </header>
 
   <main id="main">
@@ -1022,6 +1022,7 @@ function abrirContrato(id){
   if(!ct)return;
 
   contratoAtivo=id;
+  gpsBases=[];gpsReady=false; /* recarrega rodovias do novo contrato */
   /* Compatibilidade: contratos antigos (campo único) vs novos (array rodovias) */
   const rods=ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}];
   const rodLabels=rods.map(r=>r.rodovia+(r.uf?'/'+r.uf:''));
@@ -1642,6 +1643,8 @@ function zipStore(files){
 const GPS_R=6371008.8, GPS_D2R=Math.PI/180;
 let gpsWatchId=null, gpsBases=[], gpsReady=false;
 
+const KMCHECK_BASE='https://wagnerxm.github.io/kmcheck/data/rodovias/';
+
 /* Abre o IndexedDB do KM Check e carrega as rodovias */
 function loadKmCheckBases(){
   return new Promise((resolve)=>{
@@ -1665,6 +1668,68 @@ function loadKmCheckBases(){
       req.onerror=()=>resolve([]);
     }catch(e){resolve([]);}
   });
+}
+
+/* Converte segmentos do JSON do SNV em arrays lat/lon/km (mesma lógica do KM Check) */
+function segsToBase(br,uf,segs){
+  segs.sort((a,b)=>Math.min(a.ki,a.kf)-Math.min(b.ki,b.kf));
+  const lat=[],lon=[],km=[];
+  for(const s of segs){
+    const pts=s.c||s.pts||[];
+    const acc=[0];
+    for(let i=1;i<pts.length;i++){
+      const cos=Math.cos(pts[i][1]*GPS_D2R);
+      const dx=(pts[i][0]-pts[i-1][0])*cos,dy=pts[i][1]-pts[i-1][1];
+      acc.push(acc[i-1]+Math.sqrt(dx*dx+dy*dy));
+    }
+    const total=acc[acc.length-1]||1;
+    for(let i=0;i<pts.length;i++){
+      lat.push(pts[i][1]);lon.push(pts[i][0]);
+      km.push(s.ki+(s.kf-s.ki)*(acc[i]/total));
+    }
+  }
+  if(lat.length<2)return null;
+  return{id:br+'/'+uf,br,uf,lat,lon,km,
+    kmMin:Math.min(...km),kmMax:Math.max(...km)};
+}
+
+/* Baixa uma rodovia direto do GitHub Pages do KM Check */
+async function fetchRoadFromGH(brNum,uf){
+  try{
+    const file='BR-'+brNum+'-'+uf+'.json';
+    const resp=await fetch(KMCHECK_BASE+file);
+    if(!resp.ok)return null;
+    const j=await resp.json();
+    if(!j.segments||!j.segments.length)return null;
+    return segsToBase('BR-'+j.br,j.uf,j.segments);
+  }catch(e){return null;}
+}
+
+/* Carrega rodovias necessárias para o contrato ativo.
+   1º tenta IndexedDB (KM Check instalado); 2º baixa do GitHub Pages */
+async function loadBasesParaContrato(){
+  if(!CFG.rodovias||!CFG.rodovias.length)return[];
+
+  /* Descobre quais rodovias o contrato precisa (ex: "BR-226/RN") */
+  const needed=CFG.rodovias.map(r=>{
+    const rod=r.rodovia||'';
+    const brNum=rod.replace(/^BR-/i,'');
+    return{id:rod+(r.uf?'/'+r.uf:''),br:rod,uf:r.uf||'',brNum};
+  });
+
+  /* Tenta ler do IndexedDB do KM Check */
+  const idbBases=await loadKmCheckBases();
+  const result=[];
+
+  for(const n of needed){
+    /* Procura no IndexedDB (id pode ser "BR-226/RN") */
+    const found=idbBases.find(b=>b.id===n.id);
+    if(found){result.push(found);continue;}
+    /* Fallback: baixa do GitHub Pages */
+    const dl=await fetchRoadFromGH(n.brNum,n.uf);
+    if(dl)result.push(dl);
+  }
+  return result;
 }
 
 /* Interpola KM: projeta (lat,lon) no segmento mais próximo de todas as rodovias carregadas */
@@ -1700,12 +1765,12 @@ function startVistoriaGps(){
   const label=document.getElementById('gps-label');
   if(label)label.innerHTML='<span class="gps-pulse"></span> Localizando GPS…';
 
-  /* Carrega rodovias do KM Check se ainda não fez */
+  /* Carrega rodovias do contrato (IndexedDB do KM Check → fallback GitHub Pages) */
   if(!gpsBases.length){
-    loadKmCheckBases().then(bases=>{
+    loadBasesParaContrato().then(bases=>{
       gpsBases=bases;
       gpsReady=gpsBases.length>0;
-      if(!gpsReady&&label)label.innerHTML='<span class="gps-msg">Nenhuma rodovia no KM Check</span>';
+      if(!gpsReady&&label)label.innerHTML='<span class="gps-msg">Rodovia não disponível para GPS</span>';
     });
   }else{gpsReady=gpsBases.length>0;}
 
