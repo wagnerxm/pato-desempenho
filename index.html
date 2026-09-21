@@ -478,7 +478,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 26</div>
+    <div class="ver">Versão 27</div>
   </header>
 
   <main id="main">
@@ -719,6 +719,40 @@ function renderContratos(){
   }).join('');
 }
 
+/* ===== Catálogo de rodovias (index.json do KM Check) ===== */
+const KMCHECK_BASE='https://wagnerxm.github.io/kmcheck/data/rodovias/';
+let snvIndex=null; /* {roads:[{br,uf,km,segs,file}]} */
+let snvLoadPromise=null;
+
+function loadSnvIndex(){
+  if(snvIndex)return Promise.resolve(snvIndex);
+  if(snvLoadPromise)return snvLoadPromise;
+  snvLoadPromise=fetch(KMCHECK_BASE+'index.json')
+    .then(r=>r.ok?r.json():null)
+    .then(j=>{snvIndex=j;return j;})
+    .catch(()=>null);
+  return snvLoadPromise;
+}
+
+/* Filtra rodovias do índice por UF */
+function rodsForUf(uf){
+  if(!snvIndex||!snvIndex.roads)return[];
+  return snvIndex.roads.filter(r=>r.uf===uf).sort((a,b)=>a.br.localeCompare(b.br));
+}
+
+/* Busca KM min/max de uma rodovia no JSON detalhado */
+async function fetchRoadRange(file){
+  try{
+    const resp=await fetch(KMCHECK_BASE+file);
+    if(!resp.ok)return null;
+    const j=await resp.json();
+    if(!j.segments||!j.segments.length)return null;
+    const kis=j.segments.map(s=>Math.min(s.ki,s.kf));
+    const kfs=j.segments.map(s=>Math.max(s.ki,s.kf));
+    return{ki:Math.min(...kis),kf:Math.max(...kfs),segments:j.segments,br:j.br,uf:j.uf};
+  }catch(e){return null;}
+}
+
 /* ===== Modal: Novo / Editar Contrato ===== */
 const UF_OPTIONS='<option value="">UF</option><option>AC</option><option>AL</option><option>AM</option><option>AP</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MG</option><option>MS</option><option>MT</option><option>PA</option><option>PB</option><option>PE</option><option>PI</option><option>PR</option><option>RJ</option><option>RN</option><option>RO</option><option>RR</option><option>RS</option><option>SC</option><option>SE</option><option>SP</option><option>TO</option>';
 
@@ -732,15 +766,59 @@ function rodBlockHTML(idx, r){
       ${canDel?`<button type="button" class="rod-rm" onclick="removeRodField(${idx})" title="Remover">✕</button>`:''}
     </div>
     <div class="field-row">
-      <div><select class="mr-uf" onchange="atualizaTrecho()">${UF_OPTIONS}</select></div>
-      <div><input type="text" class="mr-rod" placeholder="Ex: BR-226" value="${r.rodovia}" oninput="atualizaTrecho()"></div>
+      <div><select class="mr-uf" onchange="onUfChange(this)">${UF_OPTIONS}</select></div>
+      <div><select class="mr-rod" onchange="onRodChange(this)"><option value="">Rodovia</option></select></div>
     </div>
     <label class="f" style="margin-top:8px">Faixa de KMs</label>
     <div class="field-row">
-      <div><input type="number" class="mr-ki" placeholder="KM Inicial" value="${r.ki}" oninput="atualizaTrecho()"></div>
-      <div><input type="number" class="mr-kf" placeholder="KM Final" value="${r.kf}" oninput="atualizaTrecho()"></div>
+      <div><input type="number" class="mr-ki" placeholder="KM Inicial" value="${r.ki}" step="0.1" oninput="atualizaTrecho()"></div>
+      <div><input type="number" class="mr-kf" placeholder="KM Final" value="${r.kf}" step="0.1" oninput="atualizaTrecho()"></div>
     </div>
   </div>`;
+}
+
+/* Quando o usuário troca a UF → preenche o select de rodovias */
+function onUfChange(sel){
+  const block=sel.closest('.rod-block');
+  const rodSel=block.querySelector('.mr-rod');
+  const uf=sel.value;
+  rodSel.innerHTML='<option value="">Carregando…</option>';
+  /* Garante que o índice está carregado */
+  loadSnvIndex().then(()=>{
+    const rods=rodsForUf(uf);
+    if(!rods.length){
+      rodSel.innerHTML='<option value="">Nenhuma rodovia</option>';
+    }else{
+      rodSel.innerHTML='<option value="">Selecione a rodovia</option>'+
+        rods.map(r=>`<option value="BR-${r.br}" data-file="${r.file}">BR-${r.br}</option>`).join('');
+    }
+    /* Limpa KMs ao trocar UF */
+    block.querySelector('.mr-ki').value='';
+    block.querySelector('.mr-kf').value='';
+    atualizaTrecho();
+  });
+}
+
+/* Quando o usuário escolhe a rodovia → busca KM min/max e preenche automaticamente */
+function onRodChange(sel){
+  const block=sel.closest('.rod-block');
+  const opt=sel.selectedOptions[0];
+  const file=opt?opt.dataset.file:'';
+  if(!file){atualizaTrecho();return;}
+
+  /* Mostra loading nos campos de KM */
+  const kiEl=block.querySelector('.mr-ki');
+  const kfEl=block.querySelector('.mr-kf');
+  kiEl.placeholder='Buscando…';kfEl.placeholder='Buscando…';
+
+  fetchRoadRange(file).then(range=>{
+    kiEl.placeholder='KM Inicial';kfEl.placeholder='KM Final';
+    if(range){
+      kiEl.value=range.ki;
+      kfEl.value=range.kf;
+    }
+    atualizaTrecho();
+  });
 }
 
 /* Adiciona mais um bloco de rodovia */
@@ -748,9 +826,9 @@ function addRodField(){
   const wrap=document.getElementById('m-rods-wrap');
   const idx=wrap.querySelectorAll('.rod-block').length;
   wrap.insertAdjacentHTML('beforeend',rodBlockHTML(idx,null));
-  /* Seta UF padrão RN no novo bloco */
-  const sels=wrap.querySelectorAll('.rod-block:last-child .mr-uf');
-  if(sels.length)sels[0].value='RN';
+  /* Seta UF padrão RN e carrega rodovias */
+  const ufSel=wrap.querySelector('.rod-block:last-child .mr-uf');
+  if(ufSel){ufSel.value='RN';onUfChange(ufSel);}
   atualizaTrecho();
 }
 function removeRodField(idx){
@@ -775,12 +853,16 @@ function removeRodField(idx){
 /* Lê todos os blocos de rodovia do modal → array de objetos */
 function readRodFields(){
   const blocks=[...document.getElementById('m-rods-wrap').querySelectorAll('.rod-block')];
-  return blocks.map(b=>({
-    uf:b.querySelector('.mr-uf').value,
-    rodovia:b.querySelector('.mr-rod').value.trim(),
-    ki:parseFloat(b.querySelector('.mr-ki').value),
-    kf:parseFloat(b.querySelector('.mr-kf').value),
-  }));
+  return blocks.map(b=>{
+    const rodSel=b.querySelector('.mr-rod');
+    const rodovia=rodSel.tagName==='SELECT'?rodSel.value:rodSel.value.trim();
+    return{
+      uf:b.querySelector('.mr-uf').value,
+      rodovia,
+      ki:parseFloat(b.querySelector('.mr-ki').value),
+      kf:parseFloat(b.querySelector('.mr-kf').value),
+    };
+  });
 }
 
 function showModal(){
@@ -791,7 +873,9 @@ function showModal(){
   document.getElementById('m-empresa').value='';
   /* Uma rodovia em branco por padrão */
   document.getElementById('m-rods-wrap').innerHTML=rodBlockHTML(0,null);
-  document.querySelector('.rod-block .mr-uf').value='RN';
+  const ufSel=document.querySelector('.rod-block .mr-uf');
+  ufSel.value='RN';
+  onUfChange(ufSel); /* carrega rodovias do RN */
   document.getElementById('m-trecho-preview').textContent='Preencha os campos acima';
   document.getElementById('modal-contrato').classList.add('on');
 }
@@ -812,11 +896,31 @@ function editarContrato(id){
   const rods=ct.rodovias||[{uf:ct.uf||'',rodovia:ct.rodovia||'',ki:ct.ki,kf:ct.kf}];
   const wrap=document.getElementById('m-rods-wrap');
   wrap.innerHTML=rods.map((r,i)=>rodBlockHTML(i,r)).join('');
-  /* Seta os selects de UF */
+  /* Seta os selects de UF e carrega rodovias para cada bloco */
   wrap.querySelectorAll('.rod-block').forEach((b,i)=>{
-    b.querySelector('.mr-uf').value=rods[i].uf||'';
+    const ufSel=b.querySelector('.mr-uf');
+    ufSel.value=rods[i].uf||'';
+    /* Carrega rodovias da UF e seta a rodovia salva */
+    const rodSel=b.querySelector('.mr-rod');
+    const savedRod=rods[i].rodovia||'';
+    const savedKi=rods[i].ki;
+    const savedKf=rods[i].kf;
+    loadSnvIndex().then(()=>{
+      const available=rodsForUf(rods[i].uf||'');
+      if(available.length){
+        rodSel.innerHTML='<option value="">Selecione a rodovia</option>'+
+          available.map(r=>`<option value="BR-${r.br}" data-file="${r.file}">BR-${r.br}</option>`).join('');
+        rodSel.value=savedRod;
+      }else{
+        /* Rodovia manual (pode não estar no índice) */
+        rodSel.innerHTML=`<option value="${savedRod}">${savedRod||'—'}</option>`;
+      }
+      /* Mantém KMs salvos (não sobrescreve com os da rodovia inteira) */
+      b.querySelector('.mr-ki').value=isNaN(savedKi)?'':savedKi;
+      b.querySelector('.mr-kf').value=isNaN(savedKf)?'':savedKf;
+      atualizaTrecho();
+    });
   });
-  atualizaTrecho();
   document.getElementById('modal-contrato').classList.add('on');
 }
 
@@ -843,7 +947,7 @@ function salvarContrato(){
   /* Valida cada rodovia */
   for(let i=0;i<rods.length;i++){
     const r=rods[i];
-    if(!r.rodovia)return alert('Informe a rodovia '+(i+1)+'.');
+    if(!r.rodovia)return alert('Selecione a rodovia '+(i+1)+'.');
     if(isNaN(r.ki)||isNaN(r.kf)||r.kf<=r.ki)return alert('KM Final deve ser maior que KM Inicial na rodovia '+(i+1)+'.');
     if(r.kf-r.ki>200)return alert('Máximo 200 km por rodovia (rodovia '+(i+1)+').');
   }
@@ -879,6 +983,8 @@ function salvarContrato(){
 
   setContratos(list);
   hideModal();
+  /* Pré-baixa geometria das rodovias para o GPS da vistoria */
+  preloadRoadGeometry(rods);
   /* Após cadastrar/editar, abre o detalhe do contrato */
   abrirDetalhe(savedId);
 }
@@ -1643,8 +1749,6 @@ function zipStore(files){
 const GPS_R=6371008.8, GPS_D2R=Math.PI/180;
 let gpsWatchId=null, gpsBases=[], gpsReady=false;
 
-const KMCHECK_BASE='https://wagnerxm.github.io/kmcheck/data/rodovias/';
-
 /* Abre o IndexedDB do KM Check e carrega as rodovias */
 function loadKmCheckBases(){
   return new Promise((resolve)=>{
@@ -1703,6 +1807,38 @@ async function fetchRoadFromGH(brNum,uf){
     if(!j.segments||!j.segments.length)return null;
     return segsToBase('BR-'+j.br,j.uf,j.segments);
   }catch(e){return null;}
+}
+
+/* Pré-baixa a geometria ao cadastrar contrato — salva no IndexedDB do KM Check
+   para que fique disponível offline na vistoria */
+function preloadRoadGeometry(rods){
+  if(!rods||!rods.length)return;
+  rods.forEach(async r=>{
+    const brNum=(r.rodovia||'').replace(/^BR-/i,'');
+    if(!brNum||!r.uf)return;
+    const file='BR-'+brNum+'-'+r.uf+'.json';
+    try{
+      const resp=await fetch(KMCHECK_BASE+file);
+      if(!resp.ok)return;
+      const j=await resp.json();
+      if(!j.segments||!j.segments.length)return;
+      const base=segsToBase('BR-'+j.br,j.uf,j.segments);
+      if(!base)return;
+      /* Salva no IndexedDB do KM Check para uso offline */
+      const req=indexedDB.open('kmcheck',2);
+      req.onupgradeneeded=()=>{
+        const db=req.result;
+        if(!db.objectStoreNames.contains('bases'))db.createObjectStore('bases',{keyPath:'id'});
+        if(!db.objectStoreNames.contains('photos'))db.createObjectStore('photos',{keyPath:'id',autoIncrement:true});
+      };
+      req.onsuccess=()=>{
+        const db=req.result;
+        const tx=db.transaction('bases','readwrite');
+        tx.objectStore('bases').put(base);
+        db.close();
+      };
+    }catch(e){}
+  });
 }
 
 /* Carrega rodovias necessárias para o contrato ativo.
@@ -1850,6 +1986,7 @@ document.getElementById('modal-contrato').addEventListener('click',function(e){
 
 /* ===== Init ===== */
 renderContratos();
+loadSnvIndex(); /* pré-carrega índice de rodovias para o modal */
 
 /* ===== Service Worker ===== */
 if('serviceWorker' in navigator){
