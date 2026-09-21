@@ -234,6 +234,49 @@
   .ct-import-btn:active{border-color:var(--gold);color:#1c2333}
   #ct-import-file{display:none}
 
+  /* ═══ Modal de código (compartilhar / receber) ═══ */
+  .code-modal-overlay{position:fixed;inset:0;z-index:60;
+    background:rgba(0,0,0,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    display:none;align-items:center;justify-content:center;padding:20px}
+  .code-modal-overlay.on{display:flex}
+  .code-modal{width:100%;max-width:360px;
+    background:var(--bg);border-radius:26px;padding:28px 24px;
+    box-shadow:0 20px 60px rgba(0,0,0,.3);animation:codeIn .2s ease-out;text-align:center}
+  @keyframes codeIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+  .code-modal h3{font-size:17px;font-weight:800;color:#1c2333;margin-bottom:6px}
+  .code-modal .cm-sub{font-size:12px;color:var(--mutLight);margin-bottom:20px;line-height:1.5}
+  .code-modal .cm-code{font-size:38px;font-weight:800;letter-spacing:.15em;
+    color:#1c2333;font-variant-numeric:tabular-nums;padding:16px 0;
+    background:rgba(183,217,45,.08);border:2px solid rgba(183,217,45,.25);
+    border-radius:16px;margin-bottom:16px;font-family:var(--mono)}
+  .code-modal .cm-copy{background:var(--gold);color:#0d0f08;border:none;border-radius:999px;
+    padding:12px 28px;font-size:14px;font-weight:700;cursor:pointer;
+    font-family:var(--sans);transition:filter .12s}
+  .code-modal .cm-copy:active{filter:brightness(1.1)}
+  .code-modal .cm-close{background:none;border:none;color:var(--mutLight);font-size:13px;
+    font-weight:600;cursor:pointer;margin-top:12px;padding:8px;font-family:var(--sans)}
+  .code-modal .cm-expire{font-size:10px;color:var(--mutLight);margin-top:10px;
+    letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+  /* Input para receber código */
+  .code-modal .cm-input{display:flex;gap:6px;justify-content:center;margin-bottom:18px}
+  .code-modal .cm-input input{width:44px;height:54px;text-align:center;font-size:22px;
+    font-weight:800;border:2px solid rgba(0,0,0,.1);border-radius:12px;background:#fff;
+    color:#1c2333;font-family:var(--mono);font-variant-numeric:tabular-nums;
+    outline:none;-webkit-appearance:none;caret-color:var(--gold)}
+  .code-modal .cm-input input:focus{border-color:var(--gold)}
+  .code-modal .cm-buscar{background:var(--gold);color:#0d0f08;border:none;border-radius:999px;
+    padding:14px 28px;font-size:15px;font-weight:700;cursor:pointer;width:100%;
+    font-family:var(--sans);transition:filter .12s}
+  .code-modal .cm-buscar:active{filter:brightness(1.1)}
+  .code-modal .cm-buscar:disabled{opacity:.4;pointer-events:none}
+  .code-modal .cm-status{font-size:12px;margin-top:10px;font-weight:600;min-height:18px}
+  .code-modal .cm-status.err{color:var(--nc)}
+  .code-modal .cm-status.ok{color:var(--ok)}
+  .code-modal .cm-loading{display:inline-block;width:18px;height:18px;border:2.5px solid rgba(0,0,0,.1);
+    border-top-color:var(--gold);border-radius:50%;animation:cmSpin .6s linear infinite;
+    vertical-align:middle;margin-right:6px}
+  @keyframes cmSpin{to{transform:rotate(360deg)}}
+
   /* ═══════════════════════════════════════════════
      VISTORIA — TABELA COM BOTÕES C / NC
      ═══════════════════════════════════════════════ */
@@ -481,7 +524,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 39</div>
+    <div class="ver">Versão 40</div>
   </header>
 
   <main id="main">
@@ -493,8 +536,7 @@
           <div class="ct-count" id="ct-count"></div>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          <button class="ct-import-btn" onclick="document.getElementById('ct-import-file').click()">Importar</button>
-          <input type="file" id="ct-import-file" accept=".json" onchange="importarContrato(this)">
+          <button class="ct-import-btn" onclick="abrirReceber()">Receber</button>
           <button class="ct-add-btn" onclick="showModal()" title="Novo contrato">+</button>
         </div>
       </div>
@@ -617,6 +659,37 @@
     <div class="modal-foot">
       <button class="btn gold" id="m-salvar-btn" onclick="salvarContrato()">Cadastrar Contrato</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Código Compartilhado ═══ -->
+<div class="code-modal-overlay" id="modal-codigo" onclick="if(event.target===this)fecharModalCodigo()">
+  <div class="code-modal">
+    <h3>Código de Compartilhamento</h3>
+    <div class="cm-sub">Informe este código para outra pessoa receber o contrato com todo o histórico.</div>
+    <div class="cm-code" id="cm-code-display">------</div>
+    <button class="cm-copy" onclick="copiarCodigo()">Copiar Código</button>
+    <div class="cm-expire">Válido por 48 horas</div>
+    <button class="cm-close" onclick="fecharModalCodigo()">Fechar</button>
+  </div>
+</div>
+
+<!-- ═══ MODAL: Receber por Código ═══ -->
+<div class="code-modal-overlay" id="modal-receber" onclick="if(event.target===this)fecharModalReceber()">
+  <div class="code-modal">
+    <h3>Receber Contrato</h3>
+    <div class="cm-sub">Digite o código de 6 dígitos que você recebeu.</div>
+    <div class="cm-input" id="cm-input-wrap">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+    </div>
+    <button class="cm-buscar" id="cm-buscar-btn" onclick="buscarPorCodigo()" disabled>Buscar Contrato</button>
+    <div class="cm-status" id="cm-status"></div>
+    <button class="cm-close" onclick="fecharModalReceber()">Cancelar</button>
   </div>
 </div>
 
@@ -1007,110 +1080,183 @@ function excluirContrato(id){
 
 /* Compactação: converte payload em JSON mínimo com chaves curtas.
    Avaliações viram string de 1 char por item: C/N/A/- (null) */
-const _EV={'C':'C','NC':'N','NA':'A'};
-const _EVR={'C':'C','N':'NC','A':'NA'};
-function compactarPayload(ct,hist){
-  const c={n:ct.numero,e:ct.empresa,t:ct.trecho,
-    r:(ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}]).map(
-      r=>({u:r.uf,b:r.rodovia,i:r.ki,f:r.kf}))};
-  const h=hist.map(v=>({
-    d:v.date,f:v.fiscal,t:v.total,
-    k:v.data.map(k=>k.a+'|'+k.b+'|'+(_EV[k.capina]||'-')+(_EV[k.rocada]||'-')
-      +(_EV[k.limpeza]||'-')+(_EV[k.desobst]||'-')+(_EV[k.caiacao]||'-')).join(',')
-  }));
-  return JSON.stringify({p:1,c,h});
-}
+/* ===== Compartilhamento via código de 6 dígitos (Supabase) ===== */
+/* ⚠ CONFIGURAR: cole aqui a URL e anon key do seu projeto Supabase */
+const SB_URL='';
+const SB_KEY='';
+const SB_TABLE='compartilhar';
 
-function expandirPayload(s){
-  const d=JSON.parse(s);
-  if(!d.c)return null;
-  const ct={
-    id:'ct-'+Date.now(),numero:d.c.n,empresa:d.c.e,trecho:d.c.t,
-    uf:d.c.r[0]?.u,rodovia:d.c.r[0]?.b,ki:d.c.r[0]?.i,kf:d.c.r[0]?.f,
-    rodovias:d.c.r.map(r=>({uf:r.u,rodovia:r.b,ki:r.i,kf:r.f})),
-    criadoEm:Date.now()
-  };
-  const rodLabels=ct.rodovias.map(r=>r.rodovia+(r.uf?'/'+r.uf:''));
-  const hist=(d.h||[]).map(v=>{
-    const data=v.k?v.k.split(',').map(s=>{
-      const p=s.split('|');
-      return{a:+p[0],b:+p[1],rod:rodLabels[0]||'',
-        capina:_EVR[p[2][0]]||null,rocada:_EVR[p[2][1]]||null,
-        limpeza:_EVR[p[2][2]]||null,desobst:_EVR[p[2][3]]||null,
-        caiacao:_EVR[p[2][4]]||null};
-    }):[];
-    return{data,date:v.d,fiscal:v.f,total:v.t,
-      rod:rodLabels.join(', '),trecho:ct.trecho,
-      ki:ct.ki,kf:ct.kf,numero:ct.numero,empresa:ct.empresa,ts:Date.now()};
-  });
-  return{contrato:ct,historico:hist};
+function gerarCodigo(){
+  let c='';for(let i=0;i<6;i++)c+=Math.floor(Math.random()*10);
+  return c;
 }
-
-/* Comprime string → base64url via deflate */
-async function deflateB64(str){
-  const buf=new TextEncoder().encode(str);
-  const cs=new CompressionStream('deflate-raw');
-  const w=cs.writable.getWriter();
-  w.write(buf);w.close();
-  const chunks=[];const r=cs.readable.getReader();
-  while(true){const{done,value}=await r.read();if(done)break;chunks.push(value);}
-  const out=new Uint8Array(chunks.reduce((a,c)=>a+c.length,0));
-  let off=0;chunks.forEach(c=>{out.set(c,off);off+=c.length;});
-  let b64=btoa(String.fromCharCode(...out));
-  return b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-}
-
-async function inflateB64(b64url){
-  const b64=b64url.replace(/-/g,'+').replace(/_/g,'/');
-  const bin=atob(b64);
-  const buf=Uint8Array.from(bin,c=>c.charCodeAt(0));
-  const ds=new DecompressionStream('deflate-raw');
-  const w=ds.writable.getWriter();
-  w.write(buf);w.close();
-  const chunks=[];const r=ds.readable.getReader();
-  while(true){const{done,value}=await r.read();if(done)break;chunks.push(value);}
-  const out=new Uint8Array(chunks.reduce((a,c)=>a+c.length,0));
-  let off=0;chunks.forEach(c=>{out.set(c,off);off+=c.length;});
-  return new TextDecoder().decode(out);
-}
+function fmtCodigo(c){return c.slice(0,3)+' '+c.slice(3);}
 
 async function exportarContrato(id){
+  if(!SB_URL||!SB_KEY){
+    alert('Compartilhamento não configurado.\n\nO administrador precisa configurar o Supabase no código do app.');
+    return;
+  }
   const ct=getContratos().find(c=>c.id===id);
   if(!ct)return;
   const hist=getHistorico(id);
-  const compact=compactarPayload(ct,hist);
-  let encoded;
-  try{encoded=await deflateB64(compact);}catch(e){
-    encoded=btoa(unescape(encodeURIComponent(compact)))
-      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  }
-  const base=location.origin+location.pathname;
-  const url=base+'#i='+encoded;
+  const payload={_app:'pato-desempenho',_v:1,contrato:ct,historico:hist};
+  const codigo=gerarCodigo();
 
-  /* Se o link ficar muito grande, compartilha como arquivo */
-  if(url.length>8000){
-    const payload={_app:'pato-desempenho',_v:1,contrato:ct,historico:hist};
-    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-    const nome='PATO_'+(ct.numero||'contrato').replace(/[\/\\:*?"<>|]/g,'_')+'.json';
-    if(navigator.canShare){
-      const file=new File([blob],nome,{type:'application/json'});
-      if(navigator.canShare({files:[file]})){
-        navigator.share({files:[file],title:'Contrato '+ct.numero}).catch(()=>{});
+  /* Mostra modal com loading */
+  const display=document.getElementById('cm-code-display');
+  display.textContent='···';
+  document.getElementById('modal-codigo').classList.add('on');
+
+  try{
+    const resp=await fetch(SB_URL+'/rest/v1/'+SB_TABLE,{
+      method:'POST',
+      headers:{
+        'apikey':SB_KEY,
+        'Authorization':'Bearer '+SB_KEY,
+        'Content-Type':'application/json',
+        'Prefer':'return=minimal'
+      },
+      body:JSON.stringify({codigo,dados:payload})
+    });
+    if(!resp.ok){
+      const txt=await resp.text();
+      /* Colisão de código (improvável): tenta mais uma vez */
+      if(resp.status===409){
+        const c2=gerarCodigo();
+        const r2=await fetch(SB_URL+'/rest/v1/'+SB_TABLE,{
+          method:'POST',
+          headers:{
+            'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,
+            'Content-Type':'application/json','Prefer':'return=minimal'
+          },
+          body:JSON.stringify({codigo:c2,dados:payload})
+        });
+        if(!r2.ok)throw new Error('Erro ao enviar');
+        display.textContent=fmtCodigo(c2);
+        window._lastCode=c2;
         return;
       }
+      throw new Error(txt);
     }
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);a.download=nome;a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),5000);
-    return;
+    display.textContent=fmtCodigo(codigo);
+    window._lastCode=codigo;
+  }catch(e){
+    display.textContent='Erro';
+    console.error('Compartilhar:',e);
+    fecharModalCodigo();
+    alert('Erro ao compartilhar. Verifique sua conexão com a internet.');
   }
+}
 
+function copiarCodigo(){
+  const c=window._lastCode;
+  if(!c)return;
+  const txt=fmtCodigo(c);
+  try{
+    navigator.clipboard.writeText(txt);
+  }catch(e){/* fallback: seleciona visualmente */}
   if(navigator.share){
-    navigator.share({title:'PATO — '+(ct.numero||''),url}).catch(()=>{});
+    navigator.share({text:'PATO Desempenho — código do contrato: '+txt}).catch(()=>{});
   }else{
-    try{await navigator.clipboard.writeText(url);
-      alert('Link copiado!');
-    }catch(e){prompt('Copie o link:',url);}
+    alert('Código copiado: '+txt);
+  }
+}
+
+function fecharModalCodigo(){
+  document.getElementById('modal-codigo').classList.remove('on');
+}
+
+/* ===== Receber contrato por código ===== */
+function abrirReceber(){
+  document.getElementById('modal-receber').classList.add('on');
+  document.getElementById('cm-status').textContent='';
+  document.getElementById('cm-status').className='cm-status';
+  const inputs=document.querySelectorAll('#cm-input-wrap input');
+  inputs.forEach(i=>{i.value='';});
+  inputs[0].focus();
+  checkBuscarBtn();
+}
+function fecharModalReceber(){
+  document.getElementById('modal-receber').classList.remove('on');
+}
+
+/* Auto-avança nos inputs do código */
+document.addEventListener('DOMContentLoaded',()=>{
+  const wrap=document.getElementById('cm-input-wrap');
+  if(!wrap)return;
+  const inputs=wrap.querySelectorAll('input');
+  inputs.forEach((inp,i)=>{
+    inp.addEventListener('input',()=>{
+      inp.value=inp.value.replace(/\D/g,'').slice(0,1);
+      if(inp.value&&i<5)inputs[i+1].focus();
+      checkBuscarBtn();
+    });
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Backspace'&&!inp.value&&i>0){
+        inputs[i-1].focus();inputs[i-1].value='';
+        checkBuscarBtn();
+      }
+      if(e.key==='Enter')buscarPorCodigo();
+    });
+    /* Paste: distribui entre os inputs */
+    inp.addEventListener('paste',e=>{
+      e.preventDefault();
+      const txt=(e.clipboardData.getData('text')||'').replace(/\D/g,'').slice(0,6);
+      for(let j=0;j<6;j++)inputs[j].value=txt[j]||'';
+      if(txt.length>=6)inputs[5].focus();
+      checkBuscarBtn();
+    });
+  });
+});
+
+function checkBuscarBtn(){
+  const inputs=document.querySelectorAll('#cm-input-wrap input');
+  const code=Array.from(inputs).map(i=>i.value).join('');
+  document.getElementById('cm-buscar-btn').disabled=code.length<6;
+}
+
+async function buscarPorCodigo(){
+  if(!SB_URL||!SB_KEY){
+    alert('Compartilhamento não configurado.');return;
+  }
+  const inputs=document.querySelectorAll('#cm-input-wrap input');
+  const codigo=Array.from(inputs).map(i=>i.value).join('').replace(/\D/g,'');
+  if(codigo.length!==6)return;
+
+  const st=document.getElementById('cm-status');
+  const btn=document.getElementById('cm-buscar-btn');
+  st.className='cm-status';
+  st.innerHTML='<span class="cm-loading"></span> Buscando…';
+  btn.disabled=true;
+
+  try{
+    const resp=await fetch(
+      SB_URL+'/rest/v1/'+SB_TABLE+'?codigo=eq.'+codigo+'&select=dados',
+      {headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}}
+    );
+    if(!resp.ok)throw new Error('Erro de rede');
+    const rows=await resp.json();
+    if(!rows.length){
+      st.className='cm-status err';
+      st.textContent='Código não encontrado. Verifique e tente novamente.';
+      btn.disabled=false;
+      return;
+    }
+    const d=rows[0].dados;
+    if(!d||!d.contrato){
+      st.className='cm-status err';
+      st.textContent='Dados inválidos.';
+      btn.disabled=false;
+      return;
+    }
+    fecharModalReceber();
+    receberContrato(d);
+  }catch(e){
+    console.error('Buscar código:',e);
+    st.className='cm-status err';
+    st.textContent='Erro de conexão. Verifique a internet.';
+    btn.disabled=false;
   }
 }
 
@@ -1132,52 +1278,6 @@ function receberContrato(d){
   alert('Contrato "'+(ct.numero||'')+'" importado!'
     +(hist.length?' ('+hist.length+' vistoria'+(hist.length>1?'s':'')+')':''));
 }
-
-/* Importar via arquivo (fallback) */
-function importarContrato(input){
-  const file=input.files[0];
-  if(!file)return;
-  input.value='';
-  const reader=new FileReader();
-  reader.onload=()=>{
-    try{
-      const d=JSON.parse(reader.result);
-      if(d._app!=='pato-desempenho'||!d.contrato)
-        return alert('Arquivo inválido.');
-      receberContrato(d);
-    }catch(e){alert('Erro ao ler: '+e.message);}
-  };
-  reader.readAsText(file);
-}
-
-/* Processa link de importação #i=... */
-async function processarHashImport(){
-  const h=location.hash;
-  if(!h.startsWith('#i='))return;
-  history.replaceState(null,'',location.pathname);
-  try{
-    const json=await inflateB64(h.slice(3));
-    const d=expandirPayload(json);
-    if(!d)return;
-    setTimeout(()=>{
-      if(confirm('Recebeu o contrato "'+(d.contrato.numero||'S/N')+'" de '
-          +(d.contrato.empresa||'—')+'.\n\nDeseja importar?')){
-        receberContrato(d);
-      }
-    },300);
-  }catch(e){
-    /* Tenta fallback sem compressão */
-    try{
-      const raw=decodeURIComponent(escape(atob(h.slice(3).replace(/-/g,'+').replace(/_/g,'/'))));
-      const d=expandirPayload(raw);
-      if(d){setTimeout(()=>{
-        if(confirm('Importar contrato "'+(d.contrato.numero||'')+'"?'))receberContrato(d);
-      },300);}
-    }catch(e2){console.warn('Link inválido',e2);}
-  }
-}
-/* Detecta tanto no boot quanto se a PWA receber o link depois */
-window.addEventListener('hashchange',()=>processarHashImport());
 
 /* ===== Abrir detalhe do contrato (histórico) ===== */
 function abrirDetalhe(id){
@@ -2171,7 +2271,6 @@ document.getElementById('modal-contrato').addEventListener('click',function(e){
 /* ===== Init ===== */
 renderContratos();
 loadSnvIndex();
-processarHashImport();
 
 /* ===== Service Worker ===== */
 if('serviceWorker' in navigator){
