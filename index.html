@@ -478,7 +478,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 27</div>
+    <div class="ver">Versão 28</div>
   </header>
 
   <main id="main">
@@ -949,7 +949,7 @@ function salvarContrato(){
     const r=rods[i];
     if(!r.rodovia)return alert('Selecione a rodovia '+(i+1)+'.');
     if(isNaN(r.ki)||isNaN(r.kf)||r.kf<=r.ki)return alert('KM Final deve ser maior que KM Inicial na rodovia '+(i+1)+'.');
-    if(r.kf-r.ki>200)return alert('Máximo 200 km por rodovia (rodovia '+(i+1)+').');
+    if(r.kf-r.ki>500)return alert('Máximo 500 km por rodovia (rodovia '+(i+1)+').');
   }
 
   /* Gera o texto trecho (uma linha por rodovia) */
