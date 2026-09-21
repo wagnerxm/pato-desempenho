@@ -264,8 +264,9 @@
   .v-gps-bar .gps-pulse{width:8px;height:8px;border-radius:50%;background:var(--gold);
     animation:gpsPulse 1.5s ease-in-out infinite}
   @keyframes gpsPulse{0%,100%{opacity:.4;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
-  /* Linha da tabela destacada como "você está aqui" — fundo cinza translúcido */
-  tr.gps-here td{background:rgba(183,217,45,.13);transition:background .3s}
+  /* Linha da tabela destacada como "você está aqui" */
+  tr.gps-here td{background:rgba(183,217,45,.10);transition:background .3s}
+  tr.gps-here td:first-child{background:rgba(183,217,45,.28);color:var(--gold);font-weight:800}
 
   .v-hist-banner{flex-shrink:0;padding:6px 14px;
     background:rgba(183,217,45,.10);border-bottom:1px solid rgba(183,217,45,.18);
@@ -476,7 +477,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 29</div>
+    <div class="ver">Versão 30</div>
   </header>
 
   <main id="main">
