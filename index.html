@@ -253,14 +253,15 @@
   .v-info-bar .v-prog{font-variant-numeric:tabular-nums;font-weight:600}
 
   /* Barra de GPS — mostra KM atual do usuário na vistoria */
-  .v-gps-bar{flex-shrink:0;padding:5px 14px;display:flex;align-items:center;gap:8px;
+  .v-gps-bar{flex-shrink:0;padding:10px 16px;display:flex;align-items:center;gap:10px;
     background:rgba(18,18,18,.92);border-bottom:1px solid rgba(183,217,45,.18);
-    font-size:11px;color:#fff;font-weight:600;font-variant-numeric:tabular-nums;
+    font-size:13px;color:#fff;font-weight:600;font-variant-numeric:tabular-nums;
     transition:opacity .3s}
-  .v-gps-bar .gps-icon{width:16px;height:16px;flex-shrink:0}
-  .v-gps-bar .gps-km{font-size:14px;font-weight:800;color:var(--gold)}
-  .v-gps-bar .gps-dist{font-size:9px;color:var(--mut);font-weight:500}
-  .v-gps-bar .gps-msg{font-size:10px;color:var(--mut);font-weight:500}
+  .v-gps-bar .gps-icon{width:20px;height:20px;flex-shrink:0}
+  .v-gps-bar .gps-km{font-size:20px;font-weight:800;color:#5ba8ff}
+  .v-gps-bar .gps-rod{font-size:14px;font-weight:700;color:#fff}
+  .v-gps-bar .gps-dist{font-size:10px;color:var(--mut);font-weight:500}
+  .v-gps-bar .gps-msg{font-size:12px;color:var(--mut);font-weight:500}
   .v-gps-bar .gps-pulse{width:8px;height:8px;border-radius:50%;background:var(--gold);
     animation:gpsPulse 1.5s ease-in-out infinite}
   @keyframes gpsPulse{0%,100%{opacity:.4;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
@@ -477,7 +478,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 30</div>
+    <div class="ver">Versão 31</div>
   </header>
 
   <main id="main">
@@ -1938,7 +1939,7 @@ function updateGpsBar(fix,lat,lon){
   const fmtDist=fix.dist<10?fix.dist.toFixed(0)+'m':fix.dist<1000?(fix.dist/1000).toFixed(1)+'km':'';
   label.innerHTML='<span class="gps-pulse"></span> '+
     '<span class="gps-km">KM '+fmtKm+'</span> '+
-    fix.br+'/'+fix.uf+
+    '<span class="gps-rod">'+fix.br+'/'+fix.uf+'</span>'+
     (fmtDist?' <span class="gps-dist">('+fmtDist+' do eixo)</span>':'');
 }
 
