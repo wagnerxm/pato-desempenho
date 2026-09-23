@@ -524,7 +524,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 40</div>
+    <div class="ver">Versão 41</div>
   </header>
 
   <main id="main">
@@ -1080,67 +1080,36 @@ function excluirContrato(id){
 
 /* Compactação: converte payload em JSON mínimo com chaves curtas.
    Avaliações viram string de 1 char por item: C/N/A/- (null) */
-/* ===== Compartilhamento via código de 6 dígitos (Supabase) ===== */
-/* ⚠ CONFIGURAR: cole aqui a URL e anon key do seu projeto Supabase */
-const SB_URL='';
-const SB_KEY='';
-const SB_TABLE='compartilhar';
+/* ===== Compartilhamento via código de 6 dígitos (servidor próprio) ===== */
+/* ⚠ CONFIGURAR: cole aqui a URL do seu servidor (com HTTPS) */
+const API_URL='https://SEU_DOMINIO_AQUI';
 
-function gerarCodigo(){
-  let c='';for(let i=0;i<6;i++)c+=Math.floor(Math.random()*10);
-  return c;
-}
 function fmtCodigo(c){return c.slice(0,3)+' '+c.slice(3);}
 
 async function exportarContrato(id){
-  if(!SB_URL||!SB_KEY){
-    alert('Compartilhamento não configurado.\n\nO administrador precisa configurar o Supabase no código do app.');
+  if(!API_URL||API_URL.includes('SEU_DOMINIO')){
+    alert('Compartilhamento não configurado.\n\nConfigure a URL do servidor no código do app.');
     return;
   }
   const ct=getContratos().find(c=>c.id===id);
   if(!ct)return;
   const hist=getHistorico(id);
   const payload={_app:'pato-desempenho',_v:1,contrato:ct,historico:hist};
-  const codigo=gerarCodigo();
 
-  /* Mostra modal com loading */
   const display=document.getElementById('cm-code-display');
   display.textContent='···';
   document.getElementById('modal-codigo').classList.add('on');
 
   try{
-    const resp=await fetch(SB_URL+'/rest/v1/'+SB_TABLE,{
+    const resp=await fetch(API_URL+'/api/share',{
       method:'POST',
-      headers:{
-        'apikey':SB_KEY,
-        'Authorization':'Bearer '+SB_KEY,
-        'Content-Type':'application/json',
-        'Prefer':'return=minimal'
-      },
-      body:JSON.stringify({codigo,dados:payload})
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
     });
-    if(!resp.ok){
-      const txt=await resp.text();
-      /* Colisão de código (improvável): tenta mais uma vez */
-      if(resp.status===409){
-        const c2=gerarCodigo();
-        const r2=await fetch(SB_URL+'/rest/v1/'+SB_TABLE,{
-          method:'POST',
-          headers:{
-            'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,
-            'Content-Type':'application/json','Prefer':'return=minimal'
-          },
-          body:JSON.stringify({codigo:c2,dados:payload})
-        });
-        if(!r2.ok)throw new Error('Erro ao enviar');
-        display.textContent=fmtCodigo(c2);
-        window._lastCode=c2;
-        return;
-      }
-      throw new Error(txt);
-    }
-    display.textContent=fmtCodigo(codigo);
-    window._lastCode=codigo;
+    if(!resp.ok) throw new Error('Erro '+ resp.status);
+    const data=await resp.json();
+    display.textContent=fmtCodigo(data.codigo);
+    window._lastCode=data.codigo;
   }catch(e){
     display.textContent='Erro';
     console.error('Compartilhar:',e);
@@ -1217,7 +1186,7 @@ function checkBuscarBtn(){
 }
 
 async function buscarPorCodigo(){
-  if(!SB_URL||!SB_KEY){
+  if(!API_URL||API_URL.includes('SEU_DOMINIO')){
     alert('Compartilhamento não configurado.');return;
   }
   const inputs=document.querySelectorAll('#cm-input-wrap input');
@@ -1231,19 +1200,15 @@ async function buscarPorCodigo(){
   btn.disabled=true;
 
   try{
-    const resp=await fetch(
-      SB_URL+'/rest/v1/'+SB_TABLE+'?codigo=eq.'+codigo+'&select=dados',
-      {headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}}
-    );
-    if(!resp.ok)throw new Error('Erro de rede');
-    const rows=await resp.json();
-    if(!rows.length){
+    const resp=await fetch(API_URL+'/api/share/'+codigo);
+    if(resp.status===404){
       st.className='cm-status err';
-      st.textContent='Código não encontrado. Verifique e tente novamente.';
+      st.textContent='Código não encontrado ou expirado. Verifique e tente novamente.';
       btn.disabled=false;
       return;
     }
-    const d=rows[0].dados;
+    if(!resp.ok) throw new Error('Erro '+resp.status);
+    const d=await resp.json();
     if(!d||!d.contrato){
       st.className='cm-status err';
       st.textContent='Dados inválidos.';
