@@ -535,7 +535,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 43</div>
+    <div class="ver">Versão 44</div>
   </header>
 
   <main id="main">
@@ -1292,6 +1292,9 @@ function renderDetalhe(){
   h+=`<button class="btn ghost" style="margin-top:8px" onclick="exportarContrato('${id}')">
     Compartilhar Contrato
   </button>`;
+  h+=`<button class="btn ghost" id="btn-sync" style="margin-top:8px" onclick="sincronizarVistorias('${id}')">
+    Atualizar Vistorias
+  </button>`;
 
   /* Seção de histórico */
   h+=`<div class="det-sect">
@@ -1475,10 +1478,63 @@ function histKey(){return 'vp-'+CFG.rod+'-'+CFG.ki+'-'+CFG.kf;}
 function getHistorico(ctId){
   try{return JSON.parse(localStorage.getItem('vh-'+ctId)||'[]');}catch(e){return[];}
 }
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 function addHistorico(ctId,entry){
+  if(!entry.uid) entry.uid=uid();
   const arr=getHistorico(ctId);
   arr.push(entry);
   try{localStorage.setItem('vh-'+ctId,JSON.stringify(arr));}catch(e){}
+  /* Envia ao servidor em background (não bloqueia) */
+  pushVistoria(ctId,entry);
+}
+function pushVistoria(ctId,entry){
+  if(!API_URL)return;
+  fetch(API_URL+'/api/vistoria/'+encodeURIComponent(ctId),{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({vistorias:[entry]})
+  }).catch(()=>{});
+}
+async function sincronizarVistorias(ctId){
+  if(!API_URL){alert('Servidor não configurado.');return;}
+  const btn=document.getElementById('btn-sync');
+  if(btn){btn.disabled=true;btn.textContent='Atualizando...';}
+  try{
+    /* 1. Envia as locais para o servidor (garante que o servidor tem tudo) */
+    const locais=getHistorico(ctId);
+    /* Garante uid em todas as locais */
+    let changed=false;
+    locais.forEach(v=>{if(!v.uid){v.uid=uid();changed=true;}});
+    if(changed) try{localStorage.setItem('vh-'+ctId,JSON.stringify(locais));}catch(e){}
+    if(locais.length){
+      await fetch(API_URL+'/api/vistoria/'+encodeURIComponent(ctId),{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({vistorias:locais})
+      });
+    }
+    /* 2. Busca todas do servidor */
+    const resp=await fetch(API_URL+'/api/vistoria/'+encodeURIComponent(ctId));
+    if(!resp.ok) throw new Error('Erro '+resp.status);
+    const data=await resp.json();
+    const remotas=data.vistorias||[];
+    /* 3. Merge: adiciona as que não existem localmente */
+    const uidSet=new Set(locais.map(v=>v.uid));
+    let novas=0;
+    for(const v of remotas){
+      if(v.uid&&!uidSet.has(v.uid)){locais.push(v);uidSet.add(v.uid);novas++;}
+    }
+    if(novas){
+      /* Ordena por timestamp */
+      locais.sort((a,b)=>(a.ts||0)-(b.ts||0));
+      try{localStorage.setItem('vh-'+ctId,JSON.stringify(locais));}catch(e){}
+    }
+    renderDetalhe(ctId);
+    if(novas) alert(novas+' vistoria'+(novas>1?'s':'')+' nova'+(novas>1?'s':'')+' sincronizada'+(novas>1?'s':'')+'!');
+    else alert('Tudo sincronizado. Nenhuma vistoria nova.');
+  }catch(e){
+    console.error('Sync:',e);
+    alert('Erro ao sincronizar. Verifique sua conexão.');
+  }
+  if(btn){btn.disabled=false;btn.textContent='Atualizar Vistorias';}
 }
 function excluirVistoria(ctId,idx){
   if(!confirm('Excluir esta vistoria?'))return;

@@ -1,4 +1,4 @@
-// PATO Desempenho — API de compartilhamento por código de 6 dígitos
+// PATO Desempenho — API de compartilhamento e sincronização de vistorias
 // Zero dependências — roda com Node.js puro (v18+)
 // Uso: node server.js
 
@@ -6,11 +6,13 @@ const http = require('http');
 const fs   = require('fs');
 const path = require('path');
 
-const PORT         = 3000;
-const DATA_FILE    = path.join(__dirname, 'shares.json');
-const EXPIRY_HOURS = 48;
-const MAX_BODY     = 2 * 1024 * 1024; // 2 MB
+const PORT           = 3000;
+const DATA_FILE      = path.join(__dirname, 'shares.json');
+const VISTORIAS_FILE = path.join(__dirname, 'vistorias.json');
+const EXPIRY_HOURS   = 48;
+const MAX_BODY       = 2 * 1024 * 1024; // 2 MB
 
+/* ===== Shares (código de 6 dígitos, expira em 48h) ===== */
 function loadData(){
   try{ return JSON.parse(fs.readFileSync(DATA_FILE,'utf8')); }
   catch{ return {}; }
@@ -18,14 +20,12 @@ function loadData(){
 function saveData(data){
   fs.writeFileSync(DATA_FILE, JSON.stringify(data));
 }
-
 function cleanup(data){
   const limit = EXPIRY_HOURS * 3600000;
   const now   = Date.now();
   for(const k in data) if(now - data[k].ts > limit) delete data[k];
   return data;
 }
-
 function genCode(data){
   for(let i=0;i<100;i++){
     const c = String(Math.floor(100000 + Math.random()*900000));
@@ -34,6 +34,16 @@ function genCode(data){
   return null;
 }
 
+/* ===== Vistorias (sincronização permanente por contrato) ===== */
+function loadVistorias(){
+  try{ return JSON.parse(fs.readFileSync(VISTORIAS_FILE,'utf8')); }
+  catch{ return {}; }
+}
+function saveVistorias(v){
+  fs.writeFileSync(VISTORIAS_FILE, JSON.stringify(v));
+}
+
+/* ===== Helpers ===== */
 function parseBody(req){
   return new Promise((resolve,reject)=>{
     let body='';
@@ -80,19 +90,61 @@ const server = http.createServer(async(req,res)=>{
   }
 
   // GET /api/share/:code — busca por código
-  const m = url.pathname.match(/^\/api\/share\/(\d{6})$/);
-  if(req.method==='GET' && m){
+  const mShare = url.pathname.match(/^\/api\/share\/(\d{6})$/);
+  if(req.method==='GET' && mShare){
     const data = cleanup(loadData());
-    const entry = data[m[1]];
+    const entry = data[mShare[1]];
     if(!entry) return json(res,404,{error:'Código não encontrado ou expirado'});
-    console.log(`[GET] código ${m[1]} consultado`);
+    console.log(`[GET] código ${mShare[1]} consultado`);
     json(res,200,entry.dados);
+    return;
+  }
+
+  // POST /api/vistoria/:contractId — envia vistorias para sincronizar
+  // Body: {vistorias: [{uid, ...}, ...]}
+  const mPush = url.pathname.match(/^\/api\/vistoria\/(.+)$/);
+  if(req.method==='POST' && mPush){
+    try{
+      const ctId = decodeURIComponent(mPush[1]);
+      const body = await parseBody(req);
+      if(!body || !Array.isArray(body.vistorias)) return json(res,400,{error:'Payload inválido'});
+      const all = loadVistorias();
+      if(!all[ctId]) all[ctId] = [];
+      const existing = new Set(all[ctId].map(v=>v.uid));
+      let added = 0;
+      for(const v of body.vistorias){
+        if(!v.uid) continue;
+        if(!existing.has(v.uid)){
+          all[ctId].push(v);
+          existing.add(v.uid);
+          added++;
+        }
+      }
+      if(added) saveVistorias(all);
+      console.log(`[PUSH] contrato ${ctId}: +${added} vistorias (total ${all[ctId].length})`);
+      json(res,200,{ok:true,added,total:all[ctId].length});
+    }catch(e){
+      json(res,400,{error:String(e)});
+    }
+    return;
+  }
+
+  // GET /api/vistoria/:contractId — busca vistorias do servidor
+  const mPull = url.pathname.match(/^\/api\/vistoria\/(.+)$/);
+  if(req.method==='GET' && mPull){
+    const ctId = decodeURIComponent(mPull[1]);
+    const all = loadVistorias();
+    const vistorias = all[ctId] || [];
+    console.log(`[PULL] contrato ${ctId}: ${vistorias.length} vistorias`);
+    json(res,200,{vistorias});
     return;
   }
 
   // Health check
   if(url.pathname==='/api/health'){
-    json(res,200,{status:'ok',shares:Object.keys(cleanup(loadData())).length});
+    const vis = loadVistorias();
+    const nContratos = Object.keys(vis).length;
+    json(res,200,{status:'ok',shares:Object.keys(cleanup(loadData())).length,contratos:nContratos});
     return;
   }
 
@@ -102,7 +154,9 @@ const server = http.createServer(async(req,res)=>{
 server.listen(PORT, ()=>{
   console.log(`PATO API rodando em http://localhost:${PORT}`);
   console.log(`Endpoints:`);
-  console.log(`  POST /api/share       → cria código`);
-  console.log(`  GET  /api/share/:code  → busca por código`);
-  console.log(`  GET  /api/health       → status`);
+  console.log(`  POST /api/share            → cria código`);
+  console.log(`  GET  /api/share/:code       → busca por código`);
+  console.log(`  POST /api/vistoria/:ctId    → envia vistorias`);
+  console.log(`  GET  /api/vistoria/:ctId    → busca vistorias`);
+  console.log(`  GET  /api/health            → status`);
 });
