@@ -524,7 +524,7 @@
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 41</div>
+    <div class="ver">Versão 42</div>
   </header>
 
   <main id="main">
@@ -1081,8 +1081,7 @@ function excluirContrato(id){
 /* Compactação: converte payload em JSON mínimo com chaves curtas.
    Avaliações viram string de 1 char por item: C/N/A/- (null) */
 /* ===== Compartilhamento via código de 6 dígitos (servidor próprio) ===== */
-/* ⚠ CONFIGURAR: cole aqui a URL do seu servidor (com HTTPS) */
-const API_URL='https://SEU_DOMINIO_AQUI';
+const API_URL='https://controlcheck.duckdns.org';
 
 function fmtCodigo(c){return c.slice(0,3)+' '+c.slice(3);}
 
