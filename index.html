@@ -518,13 +518,24 @@
   .det-empty-hist{text-align:center;padding:30px 20px;color:var(--mutLight)}
   .det-empty-hist p{font-size:12px;font-weight:600;margin-bottom:4px}
   .det-empty-hist span{font-size:10px;color:rgba(0,0,0,.3)}
+
+  /* ── Swipe-to-delete nas vistorias ── */
+  .swipe-wrap{position:relative;overflow:hidden;border-radius:16px;margin-bottom:8px}
+  .swipe-content{position:relative;z-index:1;transition:transform .25s ease;
+    will-change:transform;touch-action:pan-y}
+  .swipe-content .det-hist-item{margin-bottom:0;border-radius:0}
+  .swipe-action{position:absolute;right:0;top:0;bottom:0;width:90px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--nc);color:#fff;font-size:11px;font-weight:800;
+    letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+    font-family:var(--sans)}
 </style>
 </head>
 <body>
 <div id="app">
   <header class="top">
     <div class="logo">PATO<span>Desempenho</span></div>
-    <div class="ver">Versão 42</div>
+    <div class="ver">Versão 43</div>
   </header>
 
   <main id="main">
@@ -1301,15 +1312,20 @@ function renderDetalhe(){
       const total=entry.total!=null?(entry.total*100).toFixed(1):'—';
       const c=entry.total>=.90?'var(--ok)':entry.total>=.70?'var(--warn)':'var(--nc)';
       const num=hist.length-i;
-      h+=`<div class="det-hist-item" onclick="verVistoria('${id}',${origIdx})">
-        <div class="det-hist-row">
-          <div>
-            <div class="det-hist-date">${dateStr}</div>
-            <div class="det-hist-sub">${entry.rod||''}</div>
-          </div>
-          <div style="text-align:right">
-            <div class="det-hist-fator" style="color:${c}">${total}%</div>
-            <div class="det-hist-idx">Vistoria #${num}</div>
+      h+=`<div class="swipe-wrap">
+        <div class="swipe-action" onclick="excluirVistoria('${id}',${origIdx})">Excluir</div>
+        <div class="swipe-content" onclick="swipeTap(event,'${id}',${origIdx})">
+          <div class="det-hist-item">
+            <div class="det-hist-row">
+              <div>
+                <div class="det-hist-date">${dateStr}</div>
+                <div class="det-hist-sub">${entry.rod||''}</div>
+              </div>
+              <div style="text-align:right">
+                <div class="det-hist-fator" style="color:${c}">${total}%</div>
+                <div class="det-hist-idx">Vistoria #${num}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>`;
@@ -1464,6 +1480,70 @@ function addHistorico(ctId,entry){
   arr.push(entry);
   try{localStorage.setItem('vh-'+ctId,JSON.stringify(arr));}catch(e){}
 }
+function excluirVistoria(ctId,idx){
+  if(!confirm('Excluir esta vistoria?'))return;
+  const arr=getHistorico(ctId);
+  if(idx>=0&&idx<arr.length){arr.splice(idx,1);try{localStorage.setItem('vh-'+ctId,JSON.stringify(arr));}catch(e){}}
+  renderDetalhe(ctId);
+}
+
+/* ===== Swipe-to-delete (gesto de arrastar) ===== */
+var _swipedRecently=false;
+function swipeTap(e,ctId,idx){
+  /* Ignora click depois de um swipe ou se está aberto */
+  if(_swipedRecently)return;
+  const sc=e.currentTarget;
+  if(sc&&sc.style.transform&&sc.style.transform!=='none')return;
+  verVistoria(ctId,idx);
+}
+(function(){
+  let cur=null;
+  const THRESHOLD=40,OPEN_PX=90;
+  function closeAll(except){
+    document.querySelectorAll('.swipe-content').forEach(el=>{
+      if(el!==except)el.style.transform='';
+    });
+  }
+  document.addEventListener('touchstart',function(e){
+    const el=e.target.closest('.swipe-content');
+    if(!el)return;
+    const t=e.touches[0];
+    cur={el,startX:t.clientX,startY:t.clientY,swiping:false,opened:el.style.transform&&el.style.transform!=='none'};
+    el.style.transition='none';
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(!cur)return;
+    const t=e.touches[0],dx=t.clientX-cur.startX,dy=t.clientY-cur.startY;
+    if(!cur.swiping&&Math.abs(dx)<8&&Math.abs(dy)<8)return;
+    if(!cur.swiping){
+      if(Math.abs(dy)>Math.abs(dx)){cur=null;return;}
+      cur.swiping=true;
+      closeAll(cur.el);
+    }
+    e.preventDefault();
+    const base=cur.opened?-OPEN_PX:0;
+    const x=Math.min(0,Math.max(-OPEN_PX,base+dx));
+    cur.el.style.transform='translateX('+x+'px)';
+  },{passive:false});
+  document.addEventListener('touchend',function(){
+    if(!cur||!cur.swiping){
+      if(cur)cur.el.style.transition='';
+      cur=null;return;
+    }
+    const el=cur.el;
+    el.style.transition='';
+    const curX=parseFloat((el.style.transform.match(/translateX\((.+)px\)/)||[])[1])||0;
+    if(curX<=-THRESHOLD){el.style.transform='translateX(-'+OPEN_PX+'px)';}
+    else{el.style.transform='';}
+    /* Bloqueia click pós-swipe */
+    _swipedRecently=true;
+    setTimeout(()=>{_swipedRecently=false;},300);
+    cur=null;
+  },{passive:true});
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('.swipe-wrap'))closeAll();
+  });
+})();
 
 function saveHist(){
   try{
