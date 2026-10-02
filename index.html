@@ -741,6 +741,7 @@ let rodAtivo=0;         /* índice da rodovia ativa na vistoria (quando há múl
 let kmsAll=[];          /* kms de TODAS as rodovias (para cálculos globais) */
 let kmsPorRod=[];       /* array de arrays: kms separados por rodovia */
 let detalheCtId=null;   /* id do contrato aberto na tela de detalhe */
+let editandoIdx=null;   /* índice da vistoria sendo editada (null = nova) */
 
 /* ===== Contratos (localStorage) ===== */
 const CK='pd-contratos'; /* chave localStorage dos contratos */
@@ -1362,7 +1363,7 @@ function renderDetalhe(){
   document.getElementById('det-body').innerHTML=h;
 }
 
-/* ===== Ver vistoria passada (abre resultado daquela inspeção) ===== */
+/* ===== Ver/editar vistoria passada ===== */
 function verVistoria(ctId,idx){
   const arr=getHistorico(ctId);
   if(!arr[idx])return;
@@ -1371,6 +1372,7 @@ function verVistoria(ctId,idx){
   if(!ct)return;
 
   contratoAtivo=ctId;
+  editandoIdx=idx; /* guarda qual vistoria está sendo editada */
   const rods=ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}];
   const rodLabels=rods.map(r=>r.rodovia+(r.uf?'/'+r.uf:''));
   CFG={
@@ -1411,7 +1413,14 @@ function verVistoria(ctId,idx){
     if(match)ITENS.forEach(it=>{if(saved[it.id]!=null)match[it.id]=saved[it.id];});
   });
 
-  go('scr-resultado');
+  /* Abre a tela de vistoria para poder editar */
+  go('scr-vistoria');
+  renderTable();updateProg();
+  const bw=document.getElementById('v-banner-wrap');
+  bw.innerHTML=`<div class="v-hist-banner" style="background:rgba(183,217,45,.12);border-color:rgba(183,217,45,.3)">
+    Editando vistoria #${idx+1}${h.date?' ('+fd(h.date)+')':''} — altere e veja o resultado
+    <button class="hb-x" onclick="this.parentElement.remove()">×</button>
+  </div>`;
 }
 
 /* ===== Abrir contrato → vai direto pra vistoria ===== */
@@ -1421,6 +1430,7 @@ function abrirContrato(id){
   if(!ct)return;
 
   contratoAtivo=id;
+  editandoIdx=null; /* nova vistoria, não está editando uma existente */
   gpsBases=[];gpsReady=false; /* recarrega rodovias do novo contrato */
   /* Compatibilidade: contratos antigos (campo único) vs novos (array rodovias) */
   const rods=ct.rodovias||[{uf:ct.uf,rodovia:ct.rodovia,ki:ct.ki,kf:ct.kf}];
@@ -1653,8 +1663,22 @@ function saveHist(){
        trecho:CFG.trecho,ki:CFG.ki,kf:CFG.kf,
        numero:CFG.numero,empresa:CFG.empresa,
        total,ts:Date.now(),status:'concluida'};
-    /* Salva no formato novo (array por contrato) */
-    if(contratoAtivo) addHistorico(contratoAtivo, entry);
+    if(contratoAtivo){
+      if(editandoIdx!==null){
+        /* Editando vistoria existente: sobrescreve no mesmo índice */
+        const arr=getHistorico(contratoAtivo);
+        if(editandoIdx>=0&&editandoIdx<arr.length){
+          entry.uid=arr[editandoIdx].uid||uid();
+          arr[editandoIdx]=entry;
+          try{localStorage.setItem('vh-'+contratoAtivo,JSON.stringify(arr));}catch(e){}
+          pushVistoria(contratoAtivo,entry);
+        }
+        editandoIdx=null;
+      }else{
+        /* Nova vistoria */
+        addHistorico(contratoAtivo, entry);
+      }
+    }
     /* Compatibilidade: salva no formato antigo também */
     localStorage.setItem(histKey(),JSON.stringify(entry));
   }catch(e){}
@@ -1876,7 +1900,9 @@ function concluirVistoria(){
   saveHist();
   /* Remove o rascunho */
   try{localStorage.removeItem('vd-'+contratoAtivo);}catch(e){}
-  alert('Vistoria concluída e enviada ao servidor!');
+  const msg=editandoIdx!==null?'Vistoria atualizada e enviada ao servidor!':'Vistoria concluída e enviada ao servidor!';
+  editandoIdx=null;
+  alert(msg);
   go('scr-contratos');
 }
 
@@ -1935,10 +1961,14 @@ function buildRes(){
   });
   h+=`<tr class="row-total"><td colspan="6" style="text-align:right">Fator Total</td>
     <td style="font-size:14px">${(total*100).toFixed(2)}%</td></tr></tbody></table></div>`;
-  /* Botão Concluir — envia ao servidor para outros usuários acessarem */
+  /* Botão Concluir/Salvar — envia ao servidor para outros usuários acessarem */
   const isDraft=contratoAtivo&&localStorage.getItem('vd-'+contratoAtivo);
+  const isEditing=editandoIdx!==null;
   h+=`<div style="padding:12px 0 24px;display:flex;flex-direction:column;gap:10px;align-items:center">`;
-  if(isDraft){
+  if(isEditing){
+    h+=`<button class="btn gold" style="max-width:340px" onclick="concluirVistoria()">Salvar Alterações</button>
+      <span style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.1em">Atualiza a vistoria e envia ao servidor</span>`;
+  }else if(isDraft){
     h+=`<button class="btn gold" style="max-width:340px" onclick="concluirVistoria()">Concluir Vistoria</button>
       <span style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.1em">Envia ao servidor para outros usuários</span>`;
   }else{
@@ -2450,6 +2480,19 @@ document.getElementById('modal-contrato').addEventListener('click',function(e){
 /* ===== Init ===== */
 renderContratos();
 loadSnvIndex();
+
+/* ===== Wake Lock — mantém a tela ligada enquanto o app está aberto ===== */
+/* Funciona no iOS 16.4+ (Safari PWA) e Android Chrome 84+.
+   Re-adquire automaticamente quando a aba volta ao foco (ex: trocar de app e voltar). */
+let _wakeLock=null;
+async function requestWakeLock(){
+  if(!('wakeLock' in navigator))return;
+  try{_wakeLock=await navigator.wakeLock.request('screen');}catch(e){}
+}
+requestWakeLock();
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible')requestWakeLock();
+});
 
 /* ===== Service Worker ===== */
 if('serviceWorker' in navigator){
