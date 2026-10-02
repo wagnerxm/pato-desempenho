@@ -602,7 +602,7 @@
           <span><span class="fl-dot" style="background:var(--nc)"></span>NC — Não Conforme</span>
           <span><span class="fl-dot" style="background:#3a3a3a"></span>NA — Não se Aplica</span>
         </div>
-        <button class="btn gold" id="btn-fin" onclick="finalizar()">Finalizar Vistoria</button>
+        <button class="btn gold" id="btn-fin" onclick="finalizar()">Ver Resultado</button>
       </div>
     </div>
 
@@ -1307,10 +1307,15 @@ function renderDetalhe(){
     <div class="det-trecho">${trechoHtml}</div>
   </div>`;
 
-  /* Botão de ação principal */
+  /* Botão de ação principal — muda se tem rascunho em andamento */
+  const hasDraft=!!localStorage.getItem('vd-'+id);
   h+=`<button class="btn gold det-nova-btn" onclick="abrirContrato('${id}')">
-    Iniciar Nova Vistoria
+    ${hasDraft?'Continuar Vistoria':'Iniciar Nova Vistoria'}
   </button>`;
+  if(hasDraft){
+    h+=`<div style="text-align:center;margin:-8px 0 8px;font-size:10px;color:var(--warn);
+      text-transform:uppercase;letter-spacing:.1em;font-weight:600">Rascunho em andamento</div>`;
+  }
 
   /* Seção de histórico */
   h+=`<div class="det-sect">
@@ -1331,6 +1336,9 @@ function renderDetalhe(){
       const total=entry.total!=null?(entry.total*100).toFixed(1):'—';
       const c=entry.total>=.90?'var(--ok)':entry.total>=.70?'var(--warn)':'var(--nc)';
       const num=hist.length-i;
+      const statusBadge=entry.status==='rascunho'
+        ?'<span style="font-size:8px;background:rgba(217,162,43,.2);color:var(--warn);padding:2px 6px;border-radius:999px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Rascunho</span>'
+        :'<span style="font-size:8px;background:var(--okBg);color:var(--ok);padding:2px 6px;border-radius:999px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Concluída</span>';
       h+=`<div class="swipe-wrap">
         <div class="swipe-action" onclick="excluirVistoria('${id}',${origIdx})">Excluir</div>
         <div class="swipe-content" onclick="swipeTap(event,'${id}',${origIdx})">
@@ -1338,7 +1346,7 @@ function renderDetalhe(){
             <div class="det-hist-row">
               <div>
                 <div class="det-hist-date">${dateStr}</div>
-                <div class="det-hist-sub">${entry.rod||''}</div>
+                <div class="det-hist-sub">${entry.rod||''} ${statusBadge}</div>
               </div>
               <div style="text-align:right">
                 <div class="det-hist-fator" style="color:${c}">${total}%</div>
@@ -1450,15 +1458,31 @@ function abrirContrato(id){
   kms=kmsPorRod[0];
   started=true;
 
-  /* Carrega histórico anterior se existir */
-  const prev=loadHist();
+  /* Carrega rascunho (vistoria em andamento) se existir */
   const bw=document.getElementById('v-banner-wrap');
-  if(prev){
+  let draft=null;
+  try{draft=JSON.parse(localStorage.getItem('vd-'+id)||'null');}catch(e){}
+  if(draft&&draft.data){
+    const allKms=kmsPorRod.flat();
+    draft.data.forEach(saved=>{
+      const match=allKms.find(k=>k.a===saved.a&&k.b===saved.b&&(!saved.rod||k.rod===saved.rod));
+      if(match)ITENS.forEach(it=>{if(saved[it.id]!=null)match[it.id]=saved[it.id];});
+    });
+    if(draft.date)CFG.data=draft.date;
     bw.innerHTML=`<div class="v-hist-banner">
-      Dados da vistoria anterior${prev.date?' ('+fd(prev.date)+')':''} carregados
+      Rascunho em andamento${draft.date?' ('+fd(draft.date)+')':''} — continuando de onde parou
       <button class="hb-x" onclick="this.parentElement.remove()">×</button>
     </div>`;
-  }else{bw.innerHTML='';}
+  }else{
+    /* Sem rascunho: tenta carregar última vistoria concluída */
+    const prev=loadHist();
+    if(prev){
+      bw.innerHTML=`<div class="v-hist-banner">
+        Dados da vistoria anterior${prev.date?' ('+fd(prev.date)+')':''} carregados
+        <button class="hb-x" onclick="this.parentElement.remove()">×</button>
+      </div>`;
+    }else{bw.innerHTML='';}
+  }
 
   /* Abas de rodovia (só se >1) */
   const tabsWrap=document.getElementById('v-rod-tabs-wrap');
@@ -1628,7 +1652,7 @@ function saveHist(){
     const entry={data,date:CFG.data,fiscal:CFG.fiscal,rod:CFG.rod,
        trecho:CFG.trecho,ki:CFG.ki,kf:CFG.kf,
        numero:CFG.numero,empresa:CFG.empresa,
-       total,ts:Date.now()};
+       total,ts:Date.now(),status:'concluida'};
     /* Salva no formato novo (array por contrato) */
     if(contratoAtivo) addHistorico(contratoAtivo, entry);
     /* Compatibilidade: salva no formato antigo também */
@@ -1728,12 +1752,14 @@ function cycleBtn(kmIdx, itemId){
   else if(cur==='NC') k[itemId]='C';
   else k[itemId]='C';
   updateCell(kmIdx,itemId);
+  autoSave();
 }
 
 function toggleNA(kmIdx, itemId){
   const k=kms[kmIdx];
   k[itemId]=k[itemId]==='NA'?null:'NA';
   updateCell(kmIdx,itemId);
+  autoSave();
 }
 
 /* ===== Touch / pressão longa (event delegation) ===== */
@@ -1802,7 +1828,7 @@ function updateProg(){
   document.getElementById('prog').style.width=pctAll+'%';
   document.getElementById('v-prog-txt').textContent=doneAll+'/'+allKms.length+' KMs';
   const btn=document.getElementById('btn-fin');
-  btn.textContent=doneAll===allKms.length?'Finalizar Vistoria':'Finalizar ('+doneAll+'/'+allKms.length+')';
+  btn.textContent=doneAll===allKms.length?'Ver Resultado':'Ver Resultado ('+doneAll+'/'+allKms.length+')';
 
   /* Progresso por rodovia nas abas (quando existem) */
   if(kmsPorRod.length>1){
@@ -1816,15 +1842,42 @@ function updateProg(){
   }
 }
 
-/* ===== Finalizar ===== */
+/* ===== Auto-save: salva rascunho no localStorage a cada alteração ===== */
+function autoSave(){
+  if(!contratoAtivo||!started)return;
+  try{
+    const allKms=kmsPorRod.flat();
+    const data=allKms.map(k=>({a:k.a,b:k.b,rod:k.rod,
+      capina:k.capina,rocada:k.rocada,limpeza:k.limpeza,
+      desobst:k.desobst,caiacao:k.caiacao}));
+    const draft={data,date:CFG.data,fiscal:CFG.fiscal,rod:CFG.rod,
+      trecho:CFG.trecho,ki:CFG.ki,kf:CFG.kf,
+      numero:CFG.numero,empresa:CFG.empresa,
+      total:null,ts:Date.now(),status:'rascunho'};
+    localStorage.setItem('vd-'+contratoAtivo,JSON.stringify(draft));
+  }catch(e){}
+}
+
+/* ===== Finalizar: vai para resultado (rascunho já está salvo) ===== */
 function finalizar(){
+  autoSave();
+  go('scr-resultado');
+}
+
+/* ===== Concluir: marca como concluída, salva no histórico e envia ao servidor ===== */
+function concluirVistoria(){
+  if(!contratoAtivo)return;
   const allKms=kmsPorRod.flat();
   const done=allKms.filter(k=>ITENS.every(i=>k[i.id]!==null)).length;
   if(done<allKms.length){
-    if(!confirm('Ainda faltam '+(allKms.length-done)+' KMs. Finalizar mesmo assim?'))return;
+    if(!confirm('Ainda faltam '+(allKms.length-done)+' KMs. Concluir mesmo assim?'))return;
   }
+  /* Salva no histórico como concluída */
   saveHist();
-  go('scr-resultado');
+  /* Remove o rascunho */
+  try{localStorage.removeItem('vd-'+contratoAtivo);}catch(e){}
+  alert('Vistoria concluída e enviada ao servidor!');
+  go('scr-contratos');
 }
 
 /* ===== Cálculos ===== */
@@ -1882,6 +1935,16 @@ function buildRes(){
   });
   h+=`<tr class="row-total"><td colspan="6" style="text-align:right">Fator Total</td>
     <td style="font-size:14px">${(total*100).toFixed(2)}%</td></tr></tbody></table></div>`;
+  /* Botão Concluir — envia ao servidor para outros usuários acessarem */
+  const isDraft=contratoAtivo&&localStorage.getItem('vd-'+contratoAtivo);
+  h+=`<div style="padding:12px 0 24px;display:flex;flex-direction:column;gap:10px;align-items:center">`;
+  if(isDraft){
+    h+=`<button class="btn gold" style="max-width:340px" onclick="concluirVistoria()">Concluir Vistoria</button>
+      <span style="font-size:10px;color:var(--mut);text-transform:uppercase;letter-spacing:.1em">Envia ao servidor para outros usuários</span>`;
+  }else{
+    h+=`<span style="font-size:11px;color:var(--ok);font-weight:600">Vistoria já concluída</span>`;
+  }
+  h+=`</div>`;
   document.getElementById('res-body').innerHTML=h;
 }
 
