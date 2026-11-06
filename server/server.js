@@ -6,7 +6,8 @@ const http = require('http');
 const fs   = require('fs');
 const path = require('path');
 
-const PORT           = 3000;
+// Porta própria: a 3000 do VPS é do container Docker do controlcheck-api, que volta sozinho no reboot
+const PORT           = Number(process.env.PORT) || 3100;
 const DATA_FILE      = path.join(__dirname, 'shares.json');
 const VISTORIAS_FILE = path.join(__dirname, 'vistorias.json');
 const EXPIRY_HOURS   = 48;
